@@ -243,7 +243,8 @@ def proteger_requetes():
         modules_autorises = {"eleves", "paiements_eleves"}
         if request.endpoint in {"accueil", "dashboard"}:
             return None
-        if request.endpoint == "page_module" and request.view_args.get("module") in modules_autorises:
+        view_args = request.view_args or {}
+        if request.endpoint == "page_module" and view_args.get("module") in modules_autorises:
             return None
         if request.endpoint in {"formulaire_paiement_eleve", "recu_paiement", "detail_eleve"}:
             return None
@@ -2577,12 +2578,13 @@ def formulaire_affectation_enseignant():
             """,
             (classe_id, g.current_user["ecole_id"]),
         )
-        classe = curseur.fetchone()
+        classe = cast(dict[str, Any] | None, curseur.fetchone())
         if not enseignant or not classe:
             connexion.rollback()
             flash("L'enseignant ou la classe ne correspond pas à cet établissement.", "danger")
             return render_template("enseignants/affectation.html", **contexte), 400
 
+        annee_scolaire_id = int(classe["annee_scolaire_id"])
         curseur.execute(
             """
             SELECT id FROM affectations_enseignants
@@ -2590,7 +2592,7 @@ def formulaire_affectation_enseignant():
               AND statut = 'active' AND date_fin IS NULL
             LIMIT 1 FOR UPDATE
             """,
-            (enseignant_id, classe["annee_scolaire_id"]),
+            (enseignant_id, annee_scolaire_id),
         )
         if curseur.fetchone():
             connexion.rollback()
@@ -2603,7 +2605,7 @@ def formulaire_affectation_enseignant():
                 (enseignant_id, classe_id, annee_scolaire_id, fonction, date_debut, statut)
             VALUES (%s, %s, %s, %s, %s, 'active')
             """,
-            (enseignant_id, classe_id, classe["annee_scolaire_id"], fonction or "Titulaire", debut),
+            (enseignant_id, classe_id, annee_scolaire_id, fonction or "Titulaire", debut),
         )
         affectation_id = curseur.lastrowid
         curseur.execute(

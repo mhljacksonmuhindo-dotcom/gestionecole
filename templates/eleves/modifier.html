@@ -1,6 +1,7 @@
-{% extends "base.html" %} {% block title %}Modifier le dossier élève | Gestion
-scolaire{% endblock %} {% block page_heading %}Modifier le dossier élève{%
-endblock %} {% block content %}
+﻿{% extends "base.html" %}
+{% block title %}Modifier le dossier élève | Gestion scolaire{% endblock %}
+{% block page_heading %}Modifier le dossier élève{% endblock %}
+{% block content %}
 <section class="page-header">
   <div>
     <p class="eyebrow">DOSSIER SCOLAIRE</p>
@@ -18,43 +19,34 @@ endblock %} {% block content %}
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
     <div class="form-grid">
       <div class="form-group">
-        <label for="nom">Nom</label
-        ><input id="nom" name="nom" value="{{ eleve.nom }}" required />
+        <label for="nom">Nom</label>
+        <input id="nom" name="nom" value="{{ eleve.nom }}" required />
       </div>
       <div class="form-group">
-        <label for="postnom">Postnom</label
-        ><input id="postnom" name="postnom" value="{{ eleve.postnom or '' }}" />
+        <label for="postnom">Postnom</label>
+        <input id="postnom" name="postnom" value="{{ eleve.postnom or '' }}" />
       </div>
       <div class="form-group">
-        <label for="prenom">Prénom</label
-        ><input id="prenom" name="prenom" value="{{ eleve.prenom or '' }}" />
+        <label for="prenom">Prénom</label>
+        <input id="prenom" name="prenom" value="{{ eleve.prenom or '' }}" />
       </div>
       <div class="form-group">
         <label for="sexe">Sexe</label>
         <select id="sexe" name="sexe" required>
-          <option value="M" {% if eleve.sexe="" ="M" %}selected{% endif %}>
+          <option value="M" {% if eleve.sexe == 'M' %}selected{% endif %}>
             Masculin
           </option>
-          <option value="F" {% if eleve.sexe="" ="F" %}selected{% endif %}>
+          <option value="F" {% if eleve.sexe == 'F' %}selected{% endif %}>
             Féminin
           </option>
-          <option
-            value="autre"
-            {%
-            if
-            eleve.sexe=""
-            ="autre"
-            %}selected{%
-            endif
-            %}
-          >
+          <option value="autre" {% if eleve.sexe == 'autre' %}selected{% endif %}>
             Autre
           </option>
         </select>
       </div>
       <div class="form-group">
-        <label for="date_naissance">Date de naissance</label
-        ><input
+        <label for="date_naissance">Date de naissance</label>
+        <input
           id="date_naissance"
           name="date_naissance"
           type="date"
@@ -62,24 +54,24 @@ endblock %} {% block content %}
         />
       </div>
       <div class="form-group">
-        <label for="lieu_naissance">Lieu de naissance</label
-        ><input
+        <label for="lieu_naissance">Lieu de naissance</label>
+        <input
           id="lieu_naissance"
           name="lieu_naissance"
           value="{{ eleve.lieu_naissance or '' }}"
         />
       </div>
       <div class="form-group">
-        <label for="nom_tuteur">Parent ou responsable</label
-        ><input
+        <label for="nom_tuteur">Parent ou responsable</label>
+        <input
           id="nom_tuteur"
           name="nom_tuteur"
           value="{{ eleve.nom_tuteur or '' }}"
         />
       </div>
       <div class="form-group">
-        <label for="telephone_tuteur">Téléphone du responsable</label
-        ><input
+        <label for="telephone_tuteur">Téléphone du responsable</label>
+        <input
           id="telephone_tuteur"
           name="telephone_tuteur"
           type="tel"
@@ -87,8 +79,8 @@ endblock %} {% block content %}
         />
       </div>
       <div class="form-group">
-        <label for="adresse">Adresse</label
-        ><input id="adresse" name="adresse" value="{{ eleve.adresse or '' }}" />
+        <label for="adresse">Adresse</label>
+        <input id="adresse" name="adresse" value="{{ eleve.adresse or '' }}" />
       </div>
     </div>
     <div class="form-actions">
