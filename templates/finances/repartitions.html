@@ -1,0 +1,99 @@
+{% extends "base.html" %} {% block title %}Répartitions financières | Gestion
+scolaire{% endblock %} {% block page_heading %}Répartitions financières{%
+endblock %} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">RÈGLES FINANCIÈRES</p>
+    <h1>Répartitions financières</h1>
+    <p class="muted">
+      Historique immuable des parts calculées sur les montants encaissés.
+    </p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('formulaire_regle_financiere') }}"
+    >Nouvelle règle</a
+  >
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Règles financières configurées</h2>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom</th>
+          <th>Année</th>
+          <th>Hiérarchie</th>
+          <th>Primes</th>
+          <th>Promoteur</th>
+          <th>Fonctionnement</th>
+          <th>Validité</th>
+          <th>État</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for regle in regles_financieres %}
+        <tr>
+          <td>{{ regle.nom }}</td>
+          <td>{{ regle.annee_scolaire }}</td>
+          <td>{{ regle.pourcentage_hierarchie }}%</td>
+          <td>{{ regle.pourcentage_prime_enseignants }}%</td>
+          <td>{{ regle.pourcentage_promoteur }}%</td>
+          <td>{{ regle.pourcentage_fonctionnement }}%</td>
+          <td>{{ regle.date_effet }} – {{ regle.date_fin or 'sans fin' }}</td>
+          <td>{{ 'Active' if regle.actif else 'Inactive' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="empty-state">
+            Aucune règle financière configurée.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><h2>Historique des répartitions</h2></div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Paiement associé</th>
+          <th>Catégorie</th>
+          <th>Pourcentage appliqué</th>
+          <th>Montant réparti</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for repartition in repartitions %}
+        <tr>
+          <td>{{ repartition.date or '—' }}</td>
+          <td>{{ repartition.paiement or '—' }}</td>
+          <td>{{ repartition.categorie or '—' }}</td>
+          <td>
+            {{ repartition.pourcentage if repartition.pourcentage is not none
+            else '—' }}{% if repartition.pourcentage is not none %}%{% endif %}
+          </td>
+          <td>{{ repartition.montant }} {{ repartition.devise or '' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">
+            Aucune répartition à afficher.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="notice">
+    Chaque montant ci-dessus provient du snapshot du paiement correspondant.
+    Modifier une règle ne recalcule pas les opérations passées.
+  </p>
+</section>
+{% endblock %}

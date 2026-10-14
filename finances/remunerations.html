@@ -1,0 +1,48 @@
+
+{% extends "base.html" %}
+
+{% block title %}Rémunérations | Gestion scolaire{% endblock %}
+{% block page_heading %}Rémunérations des enseignants{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">RÉMUNÉRATIONS</p>
+        <h1>Rémunérations des enseignants</h1>
+        <p class="muted">Consultez les montants calculés et leur état de validation.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <h2>Historique des rémunérations</h2>
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Enseignant</th>
+                    <th>Période</th>
+                    <th>Montant calculé</th>
+                    <th>Présences prises en compte</th>
+                    <th>Statut de validation</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for remuneration in remunerations %}
+                <tr>
+                    <td>{{ remuneration.enseignant or '—' }}</td>
+                    <td>{{ remuneration.periode or '—' }}</td>
+                    <td>{{ remuneration.montant }} FC</td>
+                    <td>{{ remuneration.presences if remuneration.presences is not none else '—' }}</td>
+                    <td>{{ remuneration.statut or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="empty-state">Aucune rémunération à afficher.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="notice">Une rémunération calculée et validée ne constitue pas une preuve de paiement. Les paiements effectués sont suivis séparément.</p>
+</section>
+{% endblock %}

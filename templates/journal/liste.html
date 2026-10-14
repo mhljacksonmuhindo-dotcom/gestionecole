@@ -1,0 +1,43 @@
+{% extends "base.html" %} {% block title %}Journal d'activités | Gestion
+scolaire{% endblock %} {% block page_heading %}Journal d'activités{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ADMINISTRATION</p>
+    <h1>Journal d'activités</h1>
+    <p class="muted">Consultez les activités enregistrées dans le système.</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Activités récentes</h2>
+  </div>
+  {% if db_message %}
+  <div class="alert alert-warning">{{ db_message }}</div>
+  {% endif %} {% if activites %} {% set colonnes = activites[0].keys() %}
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          {% for colonne in colonnes %}
+          <th>{{ colonne|replace('_', ' ')|title }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for activite in activites %}
+        <tr>
+          {% for colonne in colonnes %} {% set valeur = activite[colonne] %}
+          <td>{{ valeur if valeur is not none and valeur != '' else '—' }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif not db_message %}
+  <p class="empty-state">Aucune activité à afficher.</p>
+  {% endif %}
+</section>
+{% endblock %}

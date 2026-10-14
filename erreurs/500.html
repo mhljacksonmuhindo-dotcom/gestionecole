@@ -1,0 +1,13 @@
+{% extends "base.html" %} {% block title %}Erreur serveur{% endblock %} {% block
+page_heading %}Erreur serveur{% endblock %} {% block content %}
+<section class="panel">
+  <div class="empty-state">
+    <h1>Erreur serveur</h1>
+    <p>Une erreur empêche momentanément l'affichage de cette page.</p>
+    <p>Consulte le terminal de Flask pour identifier la cause exacte.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+      Retour au tableau de bord
+    </a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %} {% block title %}Nouvelle notification | Gestion
+scolaire{% endblock %} {% block page_heading %}Nouvelle notification{% endblock
+%} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">COMMUNICATION</p>
+    <h1>Envoyer une notification</h1>
+    <p class="muted">
+      Les notifications sont adressées aux comptes enseignants de cet
+      établissement.
+    </p>
+  </div>
+</section>
+<section class="panel">
+  {% if not enseignants %}
+  <p class="notice">
+    Aucun enseignant actif lié à un compte utilisateur n'est disponible comme
+    destinataire.
+  </p>
+  {% else %}
+  <form method="POST" action="{{ url_for('formulaire_notification') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="titre">Titre</label>
+        <input id="titre" name="titre" maxlength="180" required />
+      </div>
+      <div class="form-group">
+        <label for="type">Type</label>
+        <select id="type" name="type" required>
+          <option value="information">Information</option>
+          <option value="alerte">Alerte</option>
+          <option value="paiement">Paiement</option>
+          <option value="rappel">Rappel</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="destinataire">Destinataire</label>
+        <select id="destinataire" name="destinataire" required>
+          <option value="tous">Tous les enseignants actifs avec compte</option>
+          {% for enseignant in enseignants %}
+          <option value="{{ enseignant.id }}">
+            {{ enseignant.nom_complet }} · {{ enseignant.matricule }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="message">Message</label>
+        <textarea id="message" name="message" required></textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('page_module', module='notifications') }}"
+        >Annuler</a
+      >
+      <button class="btn btn-primary" type="submit">Envoyer</button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

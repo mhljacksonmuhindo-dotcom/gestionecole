@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Nouveau paiement | Gestion scolaire{% endblock %}
+{% block page_heading %}Nouveau paiement élève{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ENCAISSEMENTS</p>
+    <h1>Enregistrer un paiement</h1>
+    <p class="muted">Seules les inscriptions et les frais actifs de l'année en cours sont proposés.</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><h2>Rechercher une inscription</h2></div>
+  <form method="GET" action="{{ url_for('formulaire_paiement_eleve') }}" class="search-form">
+    <label class="sr-only" for="recherche-paiement">Nom ou matricule</label>
+    <input id="recherche-paiement" name="q" value="{{ recherche }}" placeholder="Nom, prénom ou matricule">
+    <button class="btn btn-secondary" type="submit">Rechercher</button>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="panel-heading"><h2>Détails de l'encaissement</h2></div>
+  {% if not inscriptions %}
+  <p class="empty-state">Aucune inscription active ne correspond à la recherche.</p>
+  {% elif not types_frais %}
+  <p class="empty-state">Aucun frais actif n'est configuré pour l'année en cours. Aucun paiement ne peut être enregistré.</p>
+  {% else %}
+  <form method="POST" action="{{ url_for('formulaire_paiement_eleve') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="recherche" value="{{ recherche }}">
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="inscription_id">Élève, classe et année</label>
+        <select id="inscription_id" name="inscription_id" required>
+          <option value="">Sélectionner une inscription</option>
+          {% for inscription in inscriptions %}
+          <option value="{{ inscription.inscription_id }}">
+            {{ inscription.eleve }} · {{ inscription.matricule }} · {{ inscription.classe }} · {{ inscription.annee_scolaire }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="type_frais_id">Type de frais</label>
+        <select id="type_frais_id" name="type_frais_id" required>
+          <option value="">Sélectionner un frais</option>
+          {% for frais in types_frais %}
+          <option value="{{ frais.id }}">{{ frais.nom }} · {{ frais.montant }} · {{ frais.annee_scolaire }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="montant_paye">Montant réellement reçu</label>
+        <input id="montant_paye" name="montant_paye" type="number" min="0.01" step="0.01" required>
+      </div>
+      <div class="form-group">
+        <label for="mode_paiement">Mode de paiement</label>
+        <select id="mode_paiement" name="mode_paiement" required>
+          <option value="">Sélectionner</option>
+          <option value="especes">Espèces</option>
+          <option value="mobile_money">Mobile money</option>
+          <option value="banque">Banque</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="reference_paiement">Référence (facultatif)</label>
+        <input id="reference_paiement" name="reference_paiement" maxlength="100">
+      </div>
+      <div class="form-group">
+        <label for="commentaire">Observation (facultatif)</label>
+        <input id="commentaire" name="commentaire">
+      </div>
+    </div>
+    <p class="notice">Le paiement ne sera accepté que si une règle financière active et valide à la date du jour totalise 100 %. Le reçu et la répartition seront conservés avec le paiement.</p>
+    <div class="form-actions">
+      <a class="btn btn-secondary" href="{{ url_for('page_module', module='paiements_eleves') }}">Annuler</a>
+      <button class="btn btn-primary" type="submit">Enregistrer et éditer le reçu</button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

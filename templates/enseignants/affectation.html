@@ -1,0 +1,75 @@
+{% extends "base.html" %} {% block title %}Affecter un enseignant | Gestion
+scolaire{% endblock %} {% block page_heading %}Affecter un enseignant{% endblock
+%} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">RESSOURCES HUMAINES</p>
+    <h1>Nouvelle affectation</h1>
+    <p class="muted">
+      Les affectations précédentes restent consultables dans l'historique.
+    </p>
+  </div>
+</section>
+<section class="panel">
+  {% if not enseignants or not classes %}
+  <p class="notice">
+    Il faut un enseignant actif et une classe rattachée à une année non
+    clôturée.
+  </p>
+  {% else %}
+  <form
+    method="POST"
+    action="{{ url_for('formulaire_affectation_enseignant') }}"
+  >
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="enseignant_id">Enseignant</label>
+        <select id="enseignant_id" name="enseignant_id" required>
+          <option value="">Sélectionner</option>
+          {% for enseignant in enseignants %}
+          <option value="{{ enseignant.id }}">
+            {{ enseignant.nom_complet }} · {{ enseignant.matricule }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="classe_id">Classe et année</label>
+        <select id="classe_id" name="classe_id" required>
+          <option value="">Sélectionner</option>
+          {% for classe in classes %}
+          <option value="{{ classe.id }}">
+            {{ classe.nom }} · {{ classe.annee_scolaire }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="fonction">Fonction</label>
+        <input
+          id="fonction"
+          name="fonction"
+          maxlength="100"
+          value="Titulaire"
+        />
+      </div>
+      <div class="form-group">
+        <label for="date_debut">Date de début</label>
+        <input id="date_debut" name="date_debut" type="date" required />
+      </div>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('page_module', module='enseignants') }}"
+        >Annuler</a
+      >
+      <button class="btn btn-primary" type="submit">
+        Enregistrer l'affectation
+      </button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

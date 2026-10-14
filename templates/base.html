@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Système de gestion d'une école primaire"
+    />
+    <title>{% block title %}Gestion scolaire{% endblock %}</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <div class="app-layout">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <div class="brand-logo">GE</div>
+          <div>
+            <strong>GESTION ÉCOLE</strong>
+            <small>Administration scolaire</small>
+          </div>
+        </div>
+
+        <div class="sidebar-label">MENU PRINCIPAL</div>
+
+        <nav class="navigation">
+          <a href="{{ url_for('dashboard') }}" class="nav-link">
+            <span>01</span> Tableau de bord
+          </a>
+          <a
+            href="{{ url_for('page_module', module='ecoles') }}"
+            class="nav-link"
+          >
+            <span>02</span> Écoles
+          </a>
+          <a
+            href="{{ url_for('page_module', module='annees_scolaires') }}"
+            class="nav-link"
+          >
+            <span>03</span> Années scolaires
+          </a>
+          <a
+            href="{{ url_for('page_module', module='classes') }}"
+            class="nav-link"
+          >
+            <span>04</span> Classes
+          </a>
+          <a
+            href="{{ url_for('page_module', module='eleves') }}"
+            class="nav-link"
+          >
+            <span>05</span> Élèves et inscriptions
+          </a>
+          <a
+            href="{{ url_for('page_module', module='enseignants') }}"
+            class="nav-link"
+          >
+            <span>06</span> Enseignants
+          </a>
+          <a
+            href="{{ url_for('page_module', module='presences') }}"
+            class="nav-link"
+          >
+            <span>07</span> Présences
+          </a>
+
+          <div class="sidebar-label">FINANCES</div>
+
+          <a
+            href="{{ url_for('page_module', module='frais') }}"
+            class="nav-link"
+          >
+            <span>08</span> Frais scolaires
+          </a>
+          <a
+            href="{{ url_for('page_module', module='paiements_eleves') }}"
+            class="nav-link"
+          >
+            <span>09</span> Paiements des élèves
+          </a>
+          <a
+            href="{{ url_for('page_module', module='repartitions') }}"
+            class="nav-link"
+          >
+            <span>10</span> Répartitions
+          </a>
+          <a
+            href="{{ url_for('page_module', module='remunerations') }}"
+            class="nav-link"
+          >
+            <span>11</span> Rémunérations
+          </a>
+          <a
+            href="{{ url_for('page_module', module='paiements_enseignants') }}"
+            class="nav-link"
+          >
+            <span>12</span> Paiements enseignants
+          </a>
+
+          <div class="sidebar-label">ADMINISTRATION</div>
+
+          <a
+            href="{{ url_for('page_module', module='notifications') }}"
+            class="nav-link"
+          >
+            <span>13</span> Notifications
+          </a>
+          <a
+            href="{{ url_for('page_module', module='rapports') }}"
+            class="nav-link"
+          >
+            <span>14</span> Rapports
+          </a>
+          <a
+            href="{{ url_for('page_module', module='utilisateurs') }}"
+            class="nav-link"
+          >
+            <span>15</span> Utilisateurs
+          </a>
+          <a
+            href="{{ url_for('page_module', module='journal') }}"
+            class="nav-link"
+          >
+            <span>16</span> Journal d'activités
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="status-dot"></span>
+          Système scolaire
+        </div>
+      </aside>
+
+      <div class="main-area">
+        <header class="topbar">
+          <button
+            class="menu-toggle"
+            id="menuToggle"
+            type="button"
+            aria-label="Ouvrir le menu"
+          >
+            ☰
+          </button>
+
+          <div class="topbar-title">
+            <span>ESPACE DE GESTION</span>
+            <strong
+              >{% block page_heading %}Tableau de bord{% endblock %}</strong
+            >
+          </div>
+
+          <div class="topbar-user">
+            <div class="user-avatar">AD</div>
+            <div class="user-info">
+              <strong
+                >{{ current_user.nom }} {{ current_user.prenom or '' }}</strong
+              >
+              <small>{{ current_user.role }}</small>
+            </div>
+            {% if current_user.role == 'enseignant' %}
+            <a
+              class="btn btn-secondary"
+              href="{{ url_for('notifications_enseignant') }}"
+              >Mes notifications</a
+            >
+            {% endif %}
+            <form method="POST" action="{{ url_for('deconnexion') }}">
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value="{{ csrf_token() }}"
+              />
+              <button type="submit" class="btn btn-secondary">Quitter</button>
+            </form>
+          </div>
+        </header>
+
+        <main class="content">
+          {% with messages = get_flashed_messages(with_categories=true) %} {% if
+          messages %} {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %} {% endif %} {% endwith %} {% block content %}{% endblock
+          %}
+        </main>
+
+        <footer class="footer">
+          <span>Gestion École Primaire</span>
+          <span>Administration scolaire</span>
+        </footer>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

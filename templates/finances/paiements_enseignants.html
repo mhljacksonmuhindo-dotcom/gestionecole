@@ -1,0 +1,51 @@
+{% extends "base.html" %} {% block title %}Paiements enseignants | Gestion
+scolaire{% endblock %} {% block page_heading %}Paiements des enseignants{%
+endblock %} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">DÉCAISSEMENTS</p>
+    <h1>Paiements des enseignants</h1>
+    <p class="muted">Historique des rémunérations effectivement payées.</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Historique des paiements</h2>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>N° reçu</th>
+          <th>Date du paiement</th>
+          <th>Enseignant</th>
+          <th>Période concernée</th>
+          <th>Montant payé</th>
+          <th>Mode</th>
+          <th>Référence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for paiement in paiements_enseignants %}
+        <tr>
+          <td>{{ paiement.numero_recu or '—' }}</td>
+          <td>{{ paiement.date_paiement or '—' }}</td>
+          <td>{{ paiement.enseignant or '—' }}</td>
+          <td>{{ '%02d'|format(paiement.mois) }}/{{ paiement.annee }}</td>
+          <td>{{ paiement.montant }} {{ paiement.devise or '' }}</td>
+          <td>{{ paiement.mode_paiement or '—' }}</td>
+          <td>{{ paiement.reference or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">
+            Aucun paiement enseignant à afficher.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

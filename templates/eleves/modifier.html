@@ -1,0 +1,106 @@
+{% extends "base.html" %} {% block title %}Modifier le dossier élève | Gestion
+scolaire{% endblock %} {% block page_heading %}Modifier le dossier élève{%
+endblock %} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">DOSSIER SCOLAIRE</p>
+    <h1>Modifier {{ eleve.nom }} {{ eleve.postnom or '' }}</h1>
+    <p class="muted">
+      Cette modification ne change aucune inscription antérieure.
+    </p>
+  </div>
+</section>
+<section class="panel">
+  <form
+    method="POST"
+    action="{{ url_for('modifier_eleve', eleve_id=eleve.id) }}"
+  >
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Nom</label
+        ><input id="nom" name="nom" value="{{ eleve.nom }}" required />
+      </div>
+      <div class="form-group">
+        <label for="postnom">Postnom</label
+        ><input id="postnom" name="postnom" value="{{ eleve.postnom or '' }}" />
+      </div>
+      <div class="form-group">
+        <label for="prenom">Prénom</label
+        ><input id="prenom" name="prenom" value="{{ eleve.prenom or '' }}" />
+      </div>
+      <div class="form-group">
+        <label for="sexe">Sexe</label>
+        <select id="sexe" name="sexe" required>
+          <option value="M" {% if eleve.sexe="" ="M" %}selected{% endif %}>
+            Masculin
+          </option>
+          <option value="F" {% if eleve.sexe="" ="F" %}selected{% endif %}>
+            Féminin
+          </option>
+          <option
+            value="autre"
+            {%
+            if
+            eleve.sexe=""
+            ="autre"
+            %}selected{%
+            endif
+            %}
+          >
+            Autre
+          </option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="date_naissance">Date de naissance</label
+        ><input
+          id="date_naissance"
+          name="date_naissance"
+          type="date"
+          value="{{ eleve.date_naissance or '' }}"
+        />
+      </div>
+      <div class="form-group">
+        <label for="lieu_naissance">Lieu de naissance</label
+        ><input
+          id="lieu_naissance"
+          name="lieu_naissance"
+          value="{{ eleve.lieu_naissance or '' }}"
+        />
+      </div>
+      <div class="form-group">
+        <label for="nom_tuteur">Parent ou responsable</label
+        ><input
+          id="nom_tuteur"
+          name="nom_tuteur"
+          value="{{ eleve.nom_tuteur or '' }}"
+        />
+      </div>
+      <div class="form-group">
+        <label for="telephone_tuteur">Téléphone du responsable</label
+        ><input
+          id="telephone_tuteur"
+          name="telephone_tuteur"
+          type="tel"
+          value="{{ eleve.telephone_tuteur or '' }}"
+        />
+      </div>
+      <div class="form-group">
+        <label for="adresse">Adresse</label
+        ><input id="adresse" name="adresse" value="{{ eleve.adresse or '' }}" />
+      </div>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('detail_eleve', eleve_id=eleve.id) }}"
+        >Annuler</a
+      >
+      <button class="btn btn-primary" type="submit">
+        Enregistrer les changements
+      </button>
+    </div>
+  </form>
+</section>
+{% endblock %}

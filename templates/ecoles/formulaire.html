@@ -1,0 +1,58 @@
+{% extends "base.html" %} {% block title %}Nouvelle école | Gestion scolaire{%
+endblock %} {% block page_heading %}Nouvelle école{% endblock %} {% block
+content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">GESTION SCOLAIRE</p>
+    <h1>Ajouter une école</h1>
+    <p class="muted">
+      Les champs correspondent à la structure de la base de données.
+    </p>
+  </div>
+</section>
+<section class="panel">
+  <form method="POST" action="{{ url_for('formulaire_ecole') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Nom de l'école</label
+        ><input id="nom" name="nom" maxlength="150" required />
+      </div>
+      <div class="form-group">
+        <label for="adresse">Adresse</label
+        ><input id="adresse" name="adresse" maxlength="255" />
+      </div>
+      <div class="form-group">
+        <label for="telephone">Téléphone</label
+        ><input id="telephone" name="telephone" type="tel" maxlength="30" />
+      </div>
+      <div class="form-group">
+        <label for="email">E-mail</label
+        ><input id="email" name="email" type="email" maxlength="150" />
+      </div>
+      <div class="form-group">
+        <label for="directeur">Directeur ou responsable</label
+        ><input id="directeur" name="directeur" maxlength="150" />
+      </div>
+      <div class="form-group">
+        <label for="devise">Devise</label
+        ><input
+          id="devise"
+          name="devise"
+          maxlength="100"
+          value="USD"
+          required
+        />
+      </div>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('page_module', module='ecoles') }}"
+        >Annuler</a
+      >
+      <button class="btn btn-primary" type="submit">Enregistrer l'école</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

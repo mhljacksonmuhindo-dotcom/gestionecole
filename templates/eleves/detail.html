@@ -1,0 +1,112 @@
+{% extends "base.html" %} {% block title %}Détail de l'élève | Gestion
+scolaire{% endblock %} {% block page_heading %}Détail de l'élève{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">DOSSIER SCOLAIRE</p>
+    <h1>Détail de l'élève</h1>
+    <p class="muted">
+      Informations personnelles et historique des inscriptions.
+    </p>
+  </div>
+  <a
+    href="{{ url_for('page_module', module='eleves') }}"
+    class="btn btn-secondary"
+    >Retour à la liste</a
+  >
+  {% if current_user.role == 'administrateur' and eleve %}
+  <a
+    href="{{ url_for('modifier_eleve', eleve_id=eleve.id) }}"
+    class="btn btn-primary"
+    >Modifier le dossier</a
+  >
+  <a
+    href="{{ url_for('reinscrire_eleve', eleve_id=eleve.id) }}"
+    class="btn btn-primary"
+    >Inscrire / changer de classe</a
+  >
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Informations de l'élève</h2>
+  </div>
+
+  {% if eleve %}
+  <div class="information-list">
+    <div>
+      <span>Matricule</span><strong>{{ eleve.matricule or '—' }}</strong>
+    </div>
+    <div>
+      <span>Nom complet</span><strong>{{ eleve.nom_complet or '—' }}</strong>
+    </div>
+    <div><span>Sexe</span><strong>{{ eleve.sexe or '—' }}</strong></div>
+    <div>
+      <span>Date de naissance</span
+      ><strong>{{ eleve.date_naissance or '—' }}</strong>
+    </div>
+    <div>
+      <span>Lieu de naissance</span
+      ><strong>{{ eleve.lieu_naissance or '—' }}</strong>
+    </div>
+    <div>
+      <span>Responsable</span><strong>{{ eleve.nom_tuteur or '—' }}</strong>
+    </div>
+    <div>
+      <span>Téléphone</span><strong>{{ eleve.telephone_tuteur or '—' }}</strong>
+    </div>
+    <div><span>Adresse</span><strong>{{ eleve.adresse or '—' }}</strong></div>
+    <div><span>Classe</span><strong>{{ eleve.classe or '—' }}</strong></div>
+    <div>
+      <span>Année scolaire</span
+      ><strong>{{ eleve.annee_scolaire or '—' }}</strong>
+    </div>
+    <div>
+      <span>Statut d'inscription</span
+      ><strong>{{ eleve.statut_inscription or '—' }}</strong>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    Aucun dossier d'élève n'a été transmis à cette page.
+  </div>
+  {% endif %}
+</section>
+{% if eleve %}
+<section class="panel">
+  <div class="panel-heading"><h2>Historique scolaire</h2></div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Année scolaire</th>
+          <th>Classe</th>
+          <th>Niveau</th>
+          <th>Date d'inscription</th>
+          <th>Statut</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inscription in historique %}
+        <tr>
+          <td>{{ inscription.annee_scolaire }}</td>
+          <td>{{ inscription.classe }}</td>
+          <td>{{ inscription.niveau }}</td>
+          <td>{{ inscription.date_inscription }}</td>
+          <td>{{ inscription.statut }}</td>
+          <td>{{ inscription.observations or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">
+            Aucune inscription enregistrée.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %} {% endblock %}

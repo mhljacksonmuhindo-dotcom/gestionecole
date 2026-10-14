@@ -1,0 +1,71 @@
+{% extends "base.html" %} {% block title %}Nouvelle classe | Gestion scolaire{%
+endblock %} {% block page_heading %}Nouvelle classe{% endblock %} {% block
+content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ORGANISATION SCOLAIRE</p>
+    <h1>Créer une classe</h1>
+    <p class="muted">La classe reste rattachée à son année scolaire.</p>
+  </div>
+</section>
+<section class="panel">
+  {% if not annees %}
+  <p class="notice">Créez d'abord une année scolaire pour cet établissement.</p>
+  {% else %}
+  <form method="POST" action="{{ url_for('formulaire_classe') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Nom de la classe</label>
+        <input id="nom" name="nom" maxlength="100" required />
+      </div>
+      <div class="form-group">
+        <label for="niveau">Niveau</label>
+        <select id="niveau" name="niveau" required>
+          <option value="">Sélectionner</option>
+          <option value="1ere_primaire">1re primaire</option>
+          <option value="2eme_primaire">2e primaire</option>
+          <option value="3eme_primaire">3e primaire</option>
+          <option value="4eme_primaire">4e primaire</option>
+          <option value="5eme_primaire">5e primaire</option>
+          <option value="6eme_primaire">6e primaire</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="annee_scolaire_id">Année scolaire</label>
+        <select id="annee_scolaire_id" name="annee_scolaire_id" required>
+          <option value="">Sélectionner</option>
+          {% for annee in annees %} {% if annee.statut != 'terminee' %}
+          <option value="{{ annee.id }}">
+            {{ annee.libelle }} ({{ annee.statut }})
+          </option>
+          {% endif %} {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="capacite">Capacité</label>
+        <input
+          id="capacite"
+          name="capacite"
+          type="number"
+          min="1"
+          value="50"
+          required
+        />
+      </div>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('page_module', module='classes') }}"
+        >Annuler</a
+      >
+      <button class="btn btn-primary" type="submit">
+        Enregistrer la classe
+      </button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

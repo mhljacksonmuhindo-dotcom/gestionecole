@@ -1,0 +1,51 @@
+{% extends "base.html" %} {% block title %}Inscrire ou changer de classe |
+Gestion scolaire{% endblock %} {% block page_heading %}Inscrire ou changer de
+classe{% endblock %} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">INSCRIPTIONS</p>
+    <h1>{{ eleve.nom }} {{ eleve.postnom or '' }} {{ eleve.prenom or '' }}</h1>
+    <p class="muted">Une inscription antérieure n'est jamais supprimée.</p>
+  </div>
+</section>
+<section class="panel">
+  {% if db_message %}
+  <p class="alert alert-warning">{{ db_message }}</p>
+  {% endif %} {% if not classes %}
+  <p class="notice">
+    Aucune classe active n'est disponible dans une année scolaire en cours.
+  </p>
+  {% else %}
+  <form
+    method="POST"
+    action="{{ url_for('reinscrire_eleve', eleve_id=eleve.id) }}"
+  >
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-group">
+      <label for="classe_id">Nouvelle classe</label>
+      <select id="classe_id" name="classe_id" required>
+        <option value="">Sélectionner</option>
+        {% for classe in classes %}
+        <option value="{{ classe.id }}">
+          {{ classe.nom }} · {{ classe.annee_scolaire }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="observations">Observation (facultative)</label
+      ><textarea id="observations" name="observations"></textarea>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('detail_eleve', eleve_id=eleve.id) }}"
+        >Annuler</a
+      ><button class="btn btn-primary" type="submit">
+        Enregistrer l'inscription
+      </button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

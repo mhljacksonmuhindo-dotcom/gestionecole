@@ -1,0 +1,210 @@
+{% extends "base.html" %} {% block title %}Mon espace enseignant | Gestion
+scolaire{% endblock %} {% block page_heading %}Mon espace enseignant{% endblock
+%} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ESPACE PERSONNEL</p>
+    <h1>Bonjour {{ current_user.prenom or current_user.nom }}</h1>
+    <p class="muted">Consultez votre profil et vos informations scolaires.</p>
+  </div>
+</section>
+{% if enseignant %}
+<section class="panel">
+  <div class="panel-heading"><h2>Mon profil</h2></div>
+  <div class="information-list">
+    <div><span>Matricule</span><strong>{{ enseignant.matricule }}</strong></div>
+    <div>
+      <span>Nom</span
+      ><strong
+        >{{ enseignant.nom }} {{ enseignant.postnom or '' }} {{
+        enseignant.prenom or '' }}</strong
+      >
+    </div>
+    <div>
+      <span>Téléphone</span><strong>{{ enseignant.telephone or '—' }}</strong>
+    </div>
+    <div>
+      <span>Spécialité</span><strong>{{ enseignant.specialite or '—' }}</strong>
+    </div>
+    <div>
+      <span>Engagement</span
+      ><strong>{{ enseignant.date_engagement or '—' }}</strong>
+    </div>
+    <div><span>Statut</span><strong>{{ enseignant.statut }}</strong></div>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Mes affectations</h2></div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Année</th>
+          <th>Classe</th>
+          <th>Niveau</th>
+          <th>Fonction</th>
+          <th>Début</th>
+          <th>Fin</th>
+          <th>État</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in affectations %}
+        <tr>
+          <td>{{ item.annee_scolaire }}</td>
+          <td>{{ item.classe }}</td>
+          <td>{{ item.niveau }}</td>
+          <td>{{ item.fonction }}</td>
+          <td>{{ item.date_debut }}</td>
+          <td>{{ item.date_fin or '—' }}</td>
+          <td>{{ item.statut }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">Aucune affectation.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Mes présences</h2></div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Statut</th>
+          <th>Arrivée</th>
+          <th>Départ</th>
+          <th>Observation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in presences %}
+        <tr>
+          <td>{{ item.date_presence }}</td>
+          <td>{{ item.statut }}</td>
+          <td>{{ item.heure_arrivee or '—' }}</td>
+          <td>{{ item.heure_depart or '—' }}</td>
+          <td>{{ item.justification or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">Aucune présence enregistrée.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Élèves de mes classes actuelles</h2></div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Matricule</th>
+          <th>Nom complet</th>
+          <th>Sexe</th>
+          <th>Classe</th>
+          <th>Année</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in eleves_classe %}
+        <tr>
+          <td>{{ item.matricule }}</td>
+          <td>{{ item.nom_complet }}</td>
+          <td>{{ item.sexe }}</td>
+          <td>{{ item.classe }}</td>
+          <td>{{ item.annee_scolaire }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">
+            Aucun élève inscrit dans vos classes actuelles.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Mes rémunérations préparées</h2></div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Période</th>
+          <th>Présences</th>
+          <th>Calculé</th>
+          <th>Validé</th>
+          <th>État</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in remunerations %}
+        <tr>
+          <td>{{ '%02d'|format(item.mois) }}/{{ item.annee }}</td>
+          <td>
+            {{ item.total_jours_presents or 0 }}/{{ item.total_jours_prevus or 0
+            }}
+          </td>
+          <td>{{ item.montant_calcule or 0 }}</td>
+          <td>{{ item.montant_valide or 0 }}</td>
+          <td>{{ item.statut }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">Aucune rémunération préparée.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Mes paiements réels</h2></div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Reçu</th>
+          <th>Période</th>
+          <th>Montant payé</th>
+          <th>Date</th>
+          <th>Mode</th>
+          <th>Référence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in paiements %}
+        <tr>
+          <td>{{ item.numero_recu }}</td>
+          <td>{{ '%02d'|format(item.mois) }}/{{ item.annee }}</td>
+          <td>{{ item.montant_paye }}</td>
+          <td>{{ item.date_paiement }}</td>
+          <td>{{ item.mode_paiement }}</td>
+          <td>{{ item.reference_paiement or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">
+            Aucun paiement réel enregistré.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% else %}
+<section class="panel">
+  <p class="notice">
+    Aucun profil enseignant n'est lié à ce compte. Contactez l'administrateur.
+  </p>
+</section>
+{% endif %} {% endblock %}

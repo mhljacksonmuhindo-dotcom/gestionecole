@@ -1,0 +1,79 @@
+{% extends "base.html" %} {% block title %}Années scolaires | Gestion scolaire{%
+endblock %} {% block page_heading %}Années scolaires{% endblock %} {% block
+content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ORGANISATION SCOLAIRE</p>
+    <h1>Années scolaires</h1>
+    <p class="muted">Consultez les périodes scolaires enregistrées.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('formulaire_annee_scolaire') }}"
+    >Ajouter une année</a
+  >
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Années scolaires enregistrées</h2>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Année scolaire</th>
+          <th>Date de début</th>
+          <th>Date de fin</th>
+          <th>Statut</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for annee in annees %}
+        <tr>
+          <td>{{ annee.libelle }}</td>
+          <td>{{ annee.date_debut or '—' }}</td>
+          <td>{{ annee.date_fin or '—' }}</td>
+          <td>{{ annee.statut or '—' }}</td>
+          <td>
+            {% if annee.statut == 'en_preparation' %}
+            <form
+              method="POST"
+              action="{{ url_for('changer_statut_annee', annee_id=annee.id) }}"
+            >
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value="{{ csrf_token() }}"
+              />
+              <input type="hidden" name="statut" value="en_cours" />
+              <button class="btn btn-primary" type="submit">Ouvrir</button>
+            </form>
+            {% elif annee.statut == 'en_cours' %}
+            <form
+              method="POST"
+              action="{{ url_for('changer_statut_annee', annee_id=annee.id) }}"
+            >
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value="{{ csrf_token() }}"
+              />
+              <input type="hidden" name="statut" value="terminee" />
+              <button class="btn btn-secondary" type="submit">Clôturer</button>
+            </form>
+            {% else %}Clôturée{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">
+            Aucune année scolaire à afficher.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

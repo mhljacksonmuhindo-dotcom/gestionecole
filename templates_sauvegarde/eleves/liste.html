@@ -1,0 +1,57 @@
+
+{% extends "base.html" %}
+
+{% block title %}Élèves et inscriptions | Gestion scolaire{% endblock %}
+{% block page_heading %}Élèves et inscriptions{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">DOSSIERS SCOLAIRES</p>
+        <h1>Élèves et inscriptions</h1>
+        <p class="muted">Consultez les dossiers et les inscriptions annuelles.</p>
+    </div>
+    <a href="{{ url_for('page_module', module='eleves') }}" class="btn btn-primary">
+        Gestion des élèves
+    </a>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <h2>Liste des élèves</h2>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Matricule</th>
+                    <th>Nom complet</th>
+                    <th>Sexe</th>
+                    <th>Classe</th>
+                    <th>Année scolaire</th>
+                    <th>Statut d'inscription</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for eleve in eleves %}
+                <tr>
+                    <td>{{ eleve.matricule or '—' }}</td>
+                    <td>{{ eleve.nom_complet }}</td>
+                    <td>{{ eleve.sexe or '—' }}</td>
+                    <td>{{ eleve.classe or '—' }}</td>
+                    <td>{{ eleve.annee_scolaire or '—' }}</td>
+                    <td>{{ eleve.statut_inscription or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="empty-state">
+                        Aucun élève à afficher.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

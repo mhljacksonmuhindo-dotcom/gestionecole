@@ -1,0 +1,32 @@
+
+{% extends "base.html" %}
+
+{% block title %}Détail enseignant | Gestion scolaire{% endblock %}
+{% block page_heading %}Détail enseignant{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">RESSOURCES HUMAINES</p>
+        <h1>Détail de l'enseignant</h1>
+        <p class="muted">Consultez les informations professionnelles.</p>
+    </div>
+    <a href="{{ url_for('page_module', module='enseignants') }}"
+       class="btn btn-secondary">Retour à la liste</a>
+</section>
+
+<section class="panel">
+    {% if enseignant %}
+    <div class="information-list">
+        <div><span>Matricule</span><strong>{{ enseignant.matricule or '—' }}</strong></div>
+        <div><span>Nom complet</span><strong>{{ enseignant.nom_complet or '—' }}</strong></div>
+        <div><span>Téléphone</span><strong>{{ enseignant.telephone or '—' }}</strong></div>
+        <div><span>Spécialité</span><strong>{{ enseignant.specialite or '—' }}</strong></div>
+        <div><span>Date d'engagement</span><strong>{{ enseignant.date_engagement or '—' }}</strong></div>
+        <div><span>Statut</span><strong>{{ enseignant.statut or '—' }}</strong></div>
+    </div>
+    {% else %}
+    <div class="empty-state">Aucun dossier enseignant n'a été transmis à cette page.</div>
+    {% endif %}
+</section>
+{% endblock %}

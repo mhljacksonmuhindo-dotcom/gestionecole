@@ -1,0 +1,85 @@
+{% extends "base.html" %} {% block title %}Enseignants | Gestion scolaire{%
+endblock %} {% block page_heading %}Enseignants{% endblock %} {% block content
+%}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">RESSOURCES HUMAINES</p>
+    <h1>Enseignants</h1>
+    <p class="muted">Consultez les dossiers du personnel enseignant.</p>
+  </div>
+  <div class="form-actions">
+    <a
+      class="btn btn-secondary"
+      href="{{ url_for('formulaire_affectation_enseignant') }}"
+      >Nouvelle affectation</a
+    >
+    <a class="btn btn-primary" href="{{ url_for('formulaire_enseignant') }}"
+      >Ajouter un enseignant</a
+    >
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Liste des enseignants</h2>
+  </div>
+  <form
+    method="GET"
+    action="{{ url_for('page_module', module='enseignants') }}"
+    class="search-form"
+  >
+    <label class="sr-only" for="recherche-enseignants"
+      >Rechercher un enseignant</label
+    >
+    <input
+      id="recherche-enseignants"
+      name="q"
+      value="{{ request.args.get('q', '') }}"
+      placeholder="Nom ou matricule"
+    />
+    <button class="btn btn-secondary" type="submit">Rechercher</button>
+  </form>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Matricule</th>
+          <th>Nom complet</th>
+          <th>Téléphone</th>
+          <th>Spécialité</th>
+          <th>Affectation actuelle</th>
+          <th>Statut</th>
+          <th>Dossier</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for enseignant in enseignants %}
+        <tr>
+          <td>{{ enseignant.matricule or '—' }}</td>
+          <td>{{ enseignant.nom_complet or '—' }}</td>
+          <td>{{ enseignant.telephone or '—' }}</td>
+          <td>{{ enseignant.specialite or '—' }}</td>
+          <td>
+            {{ enseignant.fonction or '—' }} · {{ enseignant.classe or '—' }} ·
+            {{ enseignant.annee_scolaire or '—' }}
+          </td>
+          <td>{{ enseignant.statut or '—' }}</td>
+          <td>
+            <a
+              class="btn btn-secondary"
+              href="{{ url_for('detail_enseignant', enseignant_id=enseignant.id) }}"
+              >Consulter</a
+            >
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">Aucun enseignant à afficher.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

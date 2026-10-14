@@ -1,0 +1,46 @@
+{% extends "base.html" %} {% block title %}Classes | Gestion scolaire{% endblock
+%} {% block page_heading %}Classes{% endblock %} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ORGANISATION SCOLAIRE</p>
+    <h1>Classes</h1>
+    <p class="muted">Consultez les classes de l'enseignement primaire.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('formulaire_classe') }}"
+    >Ajouter une classe</a
+  >
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Liste des classes</h2>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom de la classe</th>
+          <th>Niveau</th>
+          <th>Année scolaire</th>
+          <th>Effectif</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for classe in classes %}
+        <tr>
+          <td>{{ classe.nom }}</td>
+          <td>{{ classe.niveau or '—' }}</td>
+          <td>{{ classe.annee_scolaire or '—' }}</td>
+          <td>{{ classe.effectif if classe.effectif is not none else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" class="empty-state">Aucune classe à afficher.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,50 @@
+
+{% extends "base.html" %}
+
+{% block title %}Années scolaires | Gestion scolaire{% endblock %}
+{% block page_heading %}Années scolaires{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">ORGANISATION SCOLAIRE</p>
+        <h1>Années scolaires</h1>
+        <p class="muted">Consultez les périodes scolaires enregistrées.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <h2>Années scolaires enregistrées</h2>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Année scolaire</th>
+                    <th>Date de début</th>
+                    <th>Date de fin</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for annee in annees %}
+                <tr>
+                    <td>{{ annee.libelle }}</td>
+                    <td>{{ annee.date_debut or '—' }}</td>
+                    <td>{{ annee.date_fin or '—' }}</td>
+                    <td>{{ annee.statut or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="empty-state">
+                        Aucune année scolaire à afficher.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

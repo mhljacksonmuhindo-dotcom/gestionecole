@@ -1,0 +1,33 @@
+{% extends "base.html" %} {% block title %}{{ titre }} | Gestion scolaire{%
+endblock %} {% block page_heading %}{{ titre }}{% endblock %} {% block content
+%}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">GESTION SCOLAIRE</p>
+    <h1>{{ titre }}</h1>
+    <p class="muted">
+      {{ description or 'Consultez les données administratives et financières
+      liées à ce module.' }}
+    </p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <div>
+      <h2>État du module</h2>
+    </div>
+  </div>
+
+  <div class="empty-state">
+    <h3>Aucune donnée actuellement enregistrée</h3>
+    <p>
+      Ce module est prêt à recevoir les informations du système dès que les
+      données concernées sont vérifiées et enregistrées dans MySQL.
+    </p>
+    {% if db_message %}
+    <p class="notice">{{ db_message }}</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

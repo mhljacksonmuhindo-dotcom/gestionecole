@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reçu de paiement scolaire</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <main class="receipt">
+      <header class="receipt-header">
+        <h1>{{ ecole.nom if ecole else "École primaire" }}</h1>
+        <p>REÇU DE PAIEMENT SCOLAIRE</p>
+        <strong>N° {{ paiement.numero_recu or 'À attribuer' }}</strong>
+      </header>
+
+      <div class="receipt-details">
+        <p><strong>Élève :</strong> {{ paiement.eleve or '—' }}</p>
+        <p><strong>Matricule :</strong> {{ paiement.matricule or '—' }}</p>
+        <p><strong>Classe :</strong> {{ paiement.classe or '—' }}</p>
+        <p><strong>Type de frais :</strong> {{ paiement.type_frais or '—' }}</p>
+        <p>
+          <strong>Montant payé :</strong> {{ paiement.montant }} {{
+          paiement.devise or '' }}
+        </p>
+        <p><strong>Date :</strong> {{ paiement.date_paiement or '—' }}</p>
+        <p><strong>Caissier :</strong> {{ paiement.caissier or '—' }}</p>
+      </div>
+
+      <p class="receipt-thanks">Merci pour votre paiement.</p>
+
+      <div class="receipt-actions no-print">
+        <button type="button" class="btn btn-primary" onclick="window.print()">
+          Imprimer le reçu
+        </button>
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,51 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion | Gestion scolaire</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+    <main class="login-container">
+        <section class="login-brand">
+            <div class="brand-logo login-logo">GE</div>
+            <p class="eyebrow">ADMINISTRATION SCOLAIRE</p>
+            <h1>Gestion de l'école primaire</h1>
+            <p>Un espace de travail pour organiser les activités scolaires et financières de votre établissement.</p>
+        </section>
+
+        <section class="login-card">
+            <h2>Connexion</h2>
+            <p class="muted">Entrez vos identifiants pour accéder au système.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('connexion') }}">
+                <div class="form-group">
+                    <label for="identifiant">Nom d'utilisateur ou adresse e-mail</label>
+                    <input type="text" id="identifiant" name="identifiant"
+                           autocomplete="username" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="mot_de_passe">Mot de passe</label>
+                    <input type="password" id="mot_de_passe" name="mot_de_passe"
+                           autocomplete="current-password" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full">Se connecter</button>
+            </form>
+
+            <p class="login-note">L'accès est réservé aux utilisateurs autorisés.</p>
+        </section>
+    </main>
+</body>
+</html>

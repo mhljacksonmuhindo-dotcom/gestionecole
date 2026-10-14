@@ -1,0 +1,116 @@
+{% extends "base.html" %} {% block title %}Formulaire élève | Gestion scolaire{%
+endblock %} {% block page_heading %}Dossier de l'élève{% endblock %} {% block
+content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">DOSSIERS SCOLAIRES</p>
+    <h1>Dossier de l'élève</h1>
+    <p class="muted">
+      Enregistrez le dossier et son inscription pour l'année en cours.
+    </p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Informations personnelles</h2>
+  </div>
+
+  <form method="POST" action="{{ url_for('formulaire_eleve') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Nom</label>
+        <input id="nom" name="nom" required />
+      </div>
+
+      <div class="form-group">
+        <label for="postnom">Postnom</label>
+        <input id="postnom" name="postnom" />
+      </div>
+
+      <div class="form-group">
+        <label for="prenom">Prénom</label>
+        <input id="prenom" name="prenom" />
+      </div>
+
+      <div class="form-group">
+        <label for="sexe">Sexe</label>
+        <select id="sexe" name="sexe" required>
+          <option value="">Sélectionner</option>
+          <option value="M">Masculin</option>
+          <option value="F">Féminin</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="date_naissance">Date de naissance</label>
+        <input type="date" id="date_naissance" name="date_naissance" />
+      </div>
+
+      <div class="form-group">
+        <label for="lieu_naissance">Lieu de naissance</label>
+        <input id="lieu_naissance" name="lieu_naissance" />
+      </div>
+
+      <div class="form-group">
+        <label for="nom_tuteur">Nom du parent ou responsable</label>
+        <input id="nom_tuteur" name="nom_tuteur" />
+      </div>
+
+      <div class="form-group">
+        <label for="telephone_tuteur">Téléphone du responsable</label>
+        <input type="tel" id="telephone_tuteur" name="telephone_tuteur" />
+      </div>
+
+      <div class="form-group">
+        <label for="adresse">Adresse</label>
+        <input id="adresse" name="adresse" />
+      </div>
+
+      <div class="form-group">
+        <label for="classe_id">Classe et année scolaire</label>
+        <select id="classe_id" name="classe_id" required>
+          <option value="">Sélectionner une classe</option>
+          {% for classe in classes %}
+          <option value="{{ classe.id }}">
+            {{ classe.nom }} ({{ classe.annee_scolaire }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    {% if db_message %}
+    <p class="alert alert-warning">{{ db_message }}</p>
+    {% endif %} {% if not classes %}
+    <p class="notice">
+      Aucune classe active n'est disponible pour une année en cours. Créez
+      d'abord l'année scolaire et ses classes.
+    </p>
+    {% endif %}
+
+    <div class="form-actions">
+      <a
+        href="{{ url_for('page_module', module='eleves') }}"
+        class="btn btn-secondary"
+        >Retour</a
+      >
+      <button
+        type="submit"
+        class="btn btn-primary"
+        {%
+        if
+        not
+        classes
+        %}disabled{%
+        endif
+        %}
+      >
+        Enregistrer le dossier
+      </button>
+    </div>
+  </form>
+</section>
+{% endblock %}

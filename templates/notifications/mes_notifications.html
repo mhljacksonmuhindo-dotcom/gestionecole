@@ -1,0 +1,64 @@
+{% extends "base.html" %} {% block title %}Mes notifications | Gestion
+scolaire{% endblock %} {% block page_heading %}Mes notifications{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ESPACE ENSEIGNANT</p>
+    <h1>Mes notifications</h1>
+    <p class="muted">
+      Seuls les messages qui vous sont adressés apparaissent ici.
+    </p>
+  </div>
+</section>
+<section class="panel">
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Titre et message</th>
+          <th>État</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for notification in notifications %}
+        <tr>
+          <td>{{ notification.date_creation }}</td>
+          <td>{{ notification.type }}</td>
+          <td>
+            <strong>{{ notification.titre }}</strong><br />{{
+            notification.message }}
+          </td>
+          <td>{{ 'Lue' if notification.lu else 'Non lue' }}</td>
+          <td>
+            {% if not notification.lu %}
+            <form
+              method="POST"
+              action="{{ url_for('marquer_notification_lue', notification_id=notification.id) }}"
+            >
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value="{{ csrf_token() }}"
+              />
+              <button class="btn btn-secondary" type="submit">
+                Marquer comme lue
+              </button>
+            </form>
+            {% else %}{{ notification.date_lecture or '—' }}{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">
+            Aucune notification ne vous est adressée.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,55 @@
+
+{% extends "base.html" %}
+
+{% block title %}Présences des enseignants | Gestion scolaire{% endblock %}
+{% block page_heading %}Présences des enseignants{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">SUIVI DU PERSONNEL</p>
+        <h1>Présences des enseignants</h1>
+        <p class="muted">Consultez les présences enregistrées pour la période concernée.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <h2>Historique des présences</h2>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Enseignant</th>
+                    <th>Statut de présence</th>
+                    <th>Observation</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for presence in presences %}
+                <tr>
+                    <td>{{ presence.date_presence or '—' }}</td>
+                    <td>{{ presence.enseignant or '—' }}</td>
+                    <td>{{ presence.statut or '—' }}</td>
+                    <td>{{ presence.observation or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="empty-state">
+                        Aucune présence à afficher.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <p class="notice">
+        Le calcul des présences devra tenir compte des règles de présence et
+        d'éligibilité utilisées pour les rémunérations.
+    </p>
+</section>
+{% endblock %}

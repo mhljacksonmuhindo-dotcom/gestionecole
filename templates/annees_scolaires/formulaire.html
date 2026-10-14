@@ -1,0 +1,51 @@
+{% extends "base.html" %} {% block title %}Nouvelle année scolaire | Gestion
+scolaire{% endblock %} {% block page_heading %}Nouvelle année scolaire{%
+endblock %} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ORGANISATION SCOLAIRE</p>
+    <h1>Créer une année scolaire</h1>
+    <p class="muted">Les anciennes années et inscriptions sont conservées.</p>
+  </div>
+</section>
+<section class="panel">
+  <form method="POST" action="{{ url_for('formulaire_annee_scolaire') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="libelle">Libellé</label>
+        <input
+          id="libelle"
+          name="libelle"
+          maxlength="20"
+          placeholder="2026-2027"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="statut">Statut initial</label>
+        <select id="statut" name="statut" required>
+          <option value="en_preparation">En préparation</option>
+          <option value="en_cours">En cours</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="date_debut">Date de début</label>
+        <input id="date_debut" name="date_debut" type="date" required />
+      </div>
+      <div class="form-group">
+        <label for="date_fin">Date de fin</label>
+        <input id="date_fin" name="date_fin" type="date" required />
+      </div>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('page_module', module='annees_scolaires') }}"
+        >Annuler</a
+      >
+      <button class="btn btn-primary" type="submit">Enregistrer l'année</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

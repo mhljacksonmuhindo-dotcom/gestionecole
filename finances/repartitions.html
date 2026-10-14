@@ -1,0 +1,48 @@
+
+{% extends "base.html" %}
+
+{% block title %}Répartitions financières | Gestion scolaire{% endblock %}
+{% block page_heading %}Répartitions financières{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">RÈGLES FINANCIÈRES</p>
+        <h1>Répartitions financières</h1>
+        <p class="muted">Consultez les répartitions calculées à partir des paiements.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <h2>Historique des répartitions</h2>
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Paiement associé</th>
+                    <th>Catégorie</th>
+                    <th>Pourcentage appliqué</th>
+                    <th>Montant réparti</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for repartition in repartitions %}
+                <tr>
+                    <td>{{ repartition.date or '—' }}</td>
+                    <td>{{ repartition.paiement or '—' }}</td>
+                    <td>{{ repartition.categorie or '—' }}</td>
+                    <td>{{ repartition.pourcentage if repartition.pourcentage is not none else '—' }}{% if repartition.pourcentage is not none %}%{% endif %}</td>
+                    <td>{{ repartition.montant }} FC</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="empty-state">Aucune répartition à afficher.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="notice">Les règles financières configurées et leurs historiques doivent être conservés pour chaque opération.</p>
+</section>
+{% endblock %}

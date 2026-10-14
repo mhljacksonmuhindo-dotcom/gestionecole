@@ -1,0 +1,69 @@
+{% extends "base.html" %} {% block title %}Rapports | Gestion scolaire{%
+endblock %} {% block page_heading %}Rapports{% endblock %} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">ANALYSE ET SUIVI</p>
+    <h1>Rapports de gestion</h1>
+    <p class="muted">
+      Accédez aux synthèses scolaires et financières disponibles.
+    </p>
+  </div>
+</section>
+
+<section class="stats-grid">
+  <article class="stat-card">
+    <p class="stat-title">Inscriptions</p>
+    <h2>{{ synthese.eleves }}</h2>
+    <p class="stat-note">Élèves inscrits dans la base.</p>
+  </article>
+  <article class="stat-card">
+    <p class="stat-title">Encaissements</p>
+    <h2>{{ synthese.paiements_eleves }}</h2>
+    <p class="stat-note">Paiements enregistrés dans MySQL.</p>
+  </article>
+  <article class="stat-card">
+    <p class="stat-title">Présences</p>
+    <h2>{{ synthese.presences }}</h2>
+    <p class="stat-note">Présences suivies pour le personnel.</p>
+  </article>
+  <article class="stat-card">
+    <p class="stat-title">Rémunérations</p>
+    <h2>{{ synthese.remunerations }}</h2>
+    <p class="stat-note">Rémunérations calculées ou validées.</p>
+  </article>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Synthèse générale</h2>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Module</th>
+          <th>Volume</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Écoles</td>
+          <td>{{ synthese.ecoles }}</td>
+        </tr>
+        <tr>
+          <td>Années scolaires</td>
+          <td>{{ synthese.annees_scolaires }}</td>
+        </tr>
+        <tr>
+          <td>Classes</td>
+          <td>{{ synthese.classes }}</td>
+        </tr>
+        <tr>
+          <td>Enseignants</td>
+          <td>{{ synthese.enseignants }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

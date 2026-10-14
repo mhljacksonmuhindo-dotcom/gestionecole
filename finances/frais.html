@@ -1,0 +1,46 @@
+
+{% extends "base.html" %}
+
+{% block title %}Frais scolaires | Gestion scolaire{% endblock %}
+{% block page_heading %}Frais scolaires{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">CONFIGURATION FINANCIÈRE</p>
+        <h1>Frais scolaires</h1>
+        <p class="muted">Consultez les types de frais et les montants configurés.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <h2>Types de frais</h2>
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Type de frais</th>
+                    <th>Montant prévu</th>
+                    <th>Année scolaire</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for frais in types_frais %}
+                <tr>
+                    <td>{{ frais.nom }}</td>
+                    <td>{{ frais.montant }} FC</td>
+                    <td>{{ frais.annee_scolaire or '—' }}</td>
+                    <td>{{ frais.statut or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="empty-state">Aucun type de frais à afficher.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="notice">La création et la modification des frais seront activées après vérification du schéma MySQL.</p>
+</section>
+{% endblock %}

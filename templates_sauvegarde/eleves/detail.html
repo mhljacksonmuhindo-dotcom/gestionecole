@@ -1,0 +1,37 @@
+
+{% extends "base.html" %}
+
+{% block title %}Détail de l'élève | Gestion scolaire{% endblock %}
+{% block page_heading %}Détail de l'élève{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">DOSSIER SCOLAIRE</p>
+        <h1>Détail de l'élève</h1>
+        <p class="muted">Informations personnelles et historique des inscriptions.</p>
+    </div>
+    <a href="{{ url_for('page_module', module='eleves') }}"
+       class="btn btn-secondary">Retour à la liste</a>
+</section>
+
+<section class="panel">
+    <div class="panel-heading">
+        <h2>Informations de l'élève</h2>
+    </div>
+
+    {% if eleve %}
+    <div class="information-list">
+        <div><span>Matricule</span><strong>{{ eleve.matricule or '—' }}</strong></div>
+        <div><span>Nom complet</span><strong>{{ eleve.nom_complet or '—' }}</strong></div>
+        <div><span>Sexe</span><strong>{{ eleve.sexe or '—' }}</strong></div>
+        <div><span>Date de naissance</span><strong>{{ eleve.date_naissance or '—' }}</strong></div>
+        <div><span>Responsable</span><strong>{{ eleve.nom_parent or '—' }}</strong></div>
+        <div><span>Téléphone</span><strong>{{ eleve.telephone_parent or '—' }}</strong></div>
+        <div><span>Adresse</span><strong>{{ eleve.adresse or '—' }}</strong></div>
+    </div>
+    {% else %}
+    <div class="empty-state">Aucun dossier d'élève n'a été transmis à cette page.</div>
+    {% endif %}
+</section>
+{% endblock %}

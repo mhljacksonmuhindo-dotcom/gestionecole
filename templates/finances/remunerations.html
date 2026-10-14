@@ -1,0 +1,116 @@
+{% extends "base.html" %} {% block title %}Rémunérations | Gestion scolaire{%
+endblock %} {% block page_heading %}Rémunérations des enseignants{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">RÉMUNÉRATIONS</p>
+    <h1>Rémunérations des enseignants</h1>
+    <p class="muted">
+      Consultez les montants préparés, validés et payés séparément.
+    </p>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-heading"><h2>Historique des rémunérations</h2></div>
+  {% if db_message %}
+  <p class="alert alert-warning">{{ db_message }}</p>
+  {% endif %}
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Enseignant</th>
+          <th>Période</th>
+          <th>Présences</th>
+          <th>Pool disponible</th>
+          <th>Montant calculé</th>
+          <th>Montant validé</th>
+          <th>État</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for remuneration in remunerations %}
+        <tr>
+          <td>{{ remuneration.enseignant or '—' }}</td>
+          <td>
+            {{ '%02d'|format(remuneration.mois) }}/{{ remuneration.annee }}
+          </td>
+          <td>
+            {{ remuneration.total_jours_presents or 0 }} / {{
+            remuneration.total_jours_prevus or 0 }}
+          </td>
+          <td>
+            {{ remuneration.montant_pool_disponible or 0 }} {{
+            remuneration.devise or '' }}
+          </td>
+          <td>
+            {{ remuneration.montant_calcule or 0 }} {{ remuneration.devise or ''
+            }}
+          </td>
+          <td>
+            {{ remuneration.montant_valide or 0 }} {{ remuneration.devise or ''
+            }}
+          </td>
+          <td>{{ remuneration.statut or '—' }}</td>
+          <td>
+            {% if remuneration.statut == 'a_valider' %}
+            <form
+              method="POST"
+              action="{{ url_for('valider_remuneration', remuneration_id=remuneration.id) }}"
+            >
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value="{{ csrf_token() }}"
+              />
+              <button class="btn btn-primary" type="submit">Valider</button>
+            </form>
+            {% elif remuneration.statut == 'validee' %}
+            <form
+              method="POST"
+              action="{{ url_for('payer_remuneration', remuneration_id=remuneration.id) }}"
+            >
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value="{{ csrf_token() }}"
+              />
+              <select
+                name="mode_paiement"
+                aria-label="Mode de paiement"
+                required
+              >
+                <option value="especes">Espèces</option>
+                <option value="mobile_money">Mobile money</option>
+                <option value="banque">Banque</option>
+                <option value="autre">Autre</option>
+              </select>
+              <input
+                name="reference_paiement"
+                maxlength="100"
+                placeholder="Référence"
+              />
+              <button class="btn btn-primary" type="submit">Payer</button>
+            </form>
+            {% elif remuneration.statut == 'refusee' %}Refusée{% else %}—{%
+            endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="empty-state">
+            Aucune rémunération à afficher.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="notice">
+    La formule de calcul individuel reste à définir. Une rémunération calculée
+    ou validée n'est pas un paiement réel; seuls les enregistrements de paiement
+    séparés en font foi.
+  </p>
+</section>
+{% endblock %}

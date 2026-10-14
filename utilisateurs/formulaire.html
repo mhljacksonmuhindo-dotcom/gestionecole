@@ -1,0 +1,48 @@
+
+{% extends "base.html" %}
+
+{% block title %}Compte utilisateur | Gestion scolaire{% endblock %}
+{% block page_heading %}Compte utilisateur{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">SÉCURITÉ ET ACCÈS</p>
+        <h1>Compte utilisateur</h1>
+        <p class="muted">Préparation du formulaire de création d'un compte.</p>
+    </div>
+</section>
+
+<section class="panel">
+    <form>
+        <div class="form-group">
+            <label for="nom_complet">Nom complet</label>
+            <input id="nom_complet" name="nom_complet" required>
+        </div>
+
+        <div class="form-group">
+            <label for="identifiant">Nom d'utilisateur ou e-mail</label>
+            <input id="identifiant" name="identifiant" autocomplete="username" required>
+        </div>
+
+        <div class="form-group">
+            <label for="role">Rôle</label>
+            <select id="role" name="role" required>
+                <option value="">Sélectionner un rôle</option>
+                <option value="administrateur">Administrateur</option>
+                <option value="caissier">Caissier</option>
+                <option value="enseignant">Enseignant</option>
+            </select>
+        </div>
+
+        <p class="notice">
+            Le formulaire n'est pas encore connecté. La création réelle devra
+            appliquer les règles d'autorisation et hacher le mot de passe côté serveur.
+        </p>
+
+        <button type="button" class="btn btn-primary" disabled>
+            Enregistrement à activer
+        </button>
+    </form>
+</section>
+{% endblock %}

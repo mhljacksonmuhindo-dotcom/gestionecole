@@ -1,0 +1,13 @@
+{% extends "base.html" %} {% block title %}Page introuvable{% endblock %} {%
+block page_heading %}Page introuvable{% endblock %} {% block content %}
+<section class="panel">
+  <div class="empty-state">
+    <h1>404</h1>
+    <h2>Cette page n'existe pas.</h2>
+    <p>Vérifie l'adresse ou retourne au tableau de bord.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">
+      Retour au tableau de bord
+    </a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %} {% block title %}Nouveau type de frais | Gestion
+scolaire{% endblock %} {% block page_heading %}Nouveau type de frais{% endblock
+%} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">CONFIGURATION FINANCIÈRE</p>
+    <h1>Créer un type de frais</h1>
+    <p class="muted">Le frais sera associé à une année de cet établissement.</p>
+  </div>
+</section>
+<section class="panel">
+  {% if not annees %}
+  <p class="notice">
+    Aucune année scolaire n'est disponible pour cet établissement.
+  </p>
+  {% else %}
+  <form method="POST" action="{{ url_for('formulaire_frais') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Libellé</label>
+        <input id="nom" name="nom" maxlength="100" required />
+      </div>
+      <div class="form-group">
+        <label for="annee_scolaire_id">Année scolaire</label>
+        <select id="annee_scolaire_id" name="annee_scolaire_id" required>
+          <option value="">Sélectionner</option>
+          {% for annee in annees %} {% if annee.statut != 'terminee' %}
+          <option value="{{ annee.id }}">
+            {{ annee.libelle }} ({{ annee.statut }})
+          </option>
+          {% endif %} {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="montant">Montant prévu</label>
+        <input
+          id="montant"
+          name="montant"
+          type="number"
+          min="0"
+          step="0.01"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="date_limite">Date limite (facultatif)</label>
+        <input id="date_limite" name="date_limite" type="date" />
+      </div>
+      <div class="form-group">
+        <label for="description">Description (facultative)</label>
+        <textarea id="description" name="description"></textarea>
+      </div>
+      <div class="form-group">
+        <label
+          ><input name="obligatoire" type="checkbox" checked /> Frais
+          obligatoire</label
+        >
+      </div>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('page_module', module='frais') }}"
+        >Annuler</a
+      >
+      <button class="btn btn-primary" type="submit">
+        Enregistrer le frais
+      </button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

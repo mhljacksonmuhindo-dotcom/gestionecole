@@ -1,0 +1,108 @@
+{% extends "base.html" %} {% block title %}Nouvelle règle financière | Gestion
+scolaire{% endblock %} {% block page_heading %}Nouvelle règle financière{%
+endblock %} {% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">RÈGLES FINANCIÈRES</p>
+    <h1>Créer une règle de répartition</h1>
+    <p class="muted">
+      Le total doit être égal à 100 %. Les répartitions déjà enregistrées ne
+      seront pas recalculées.
+    </p>
+  </div>
+</section>
+<section class="panel">
+  {% if not annees %}
+  <p class="notice">Créez d'abord une année scolaire pour cet établissement.</p>
+  {% else %}
+  <form method="POST" action="{{ url_for('formulaire_regle_financiere') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Nom de la règle</label>
+        <input id="nom" name="nom" maxlength="100" required />
+      </div>
+      <div class="form-group">
+        <label for="annee_scolaire_id">Année scolaire</label>
+        <select id="annee_scolaire_id" name="annee_scolaire_id" required>
+          <option value="">Sélectionner</option>
+          {% for annee in annees %} {% if annee.statut != 'terminee' %}
+          <option value="{{ annee.id }}">
+            {{ annee.libelle }} ({{ annee.statut }})
+          </option>
+          {% endif %} {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="pourcentage_hierarchie">Hiérarchie (%)</label>
+        <input
+          id="pourcentage_hierarchie"
+          name="pourcentage_hierarchie"
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="pourcentage_prime_enseignants"
+          >Primes enseignants (%)</label
+        >
+        <input
+          id="pourcentage_prime_enseignants"
+          name="pourcentage_prime_enseignants"
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="pourcentage_promoteur">Promoteur (%)</label>
+        <input
+          id="pourcentage_promoteur"
+          name="pourcentage_promoteur"
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="pourcentage_fonctionnement">Fonctionnement (%)</label>
+        <input
+          id="pourcentage_fonctionnement"
+          name="pourcentage_fonctionnement"
+          type="number"
+          min="0"
+          max="100"
+          step="0.01"
+          required
+        />
+      </div>
+      <div class="form-group">
+        <label for="date_effet">Date d'effet</label>
+        <input id="date_effet" name="date_effet" type="date" required />
+      </div>
+      <div class="form-group">
+        <label for="date_fin">Date de fin (facultative)</label>
+        <input id="date_fin" name="date_fin" type="date" />
+      </div>
+    </div>
+    <div class="form-actions">
+      <a
+        class="btn btn-secondary"
+        href="{{ url_for('page_module', module='repartitions') }}"
+        >Annuler</a
+      >
+      <button class="btn btn-primary" type="submit">
+        Enregistrer la règle
+      </button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}
