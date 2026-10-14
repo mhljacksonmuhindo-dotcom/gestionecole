@@ -233,22 +233,15 @@
                 <span class="period-label">Année scolaire</span>
               </div>
 
-              <div class="chart">
-                {% for mois in encaissements_mensuels %}
-                <div class="bar-column">
-                  <div
-                    class="bar"
-                    style="height: {{ mois.pourcentage }}%"
-                    title="{{ mois.montant }} FC"
-                  ></div>
-                  <span>{{ mois.nom }}</span>
-                </div>
+              <div class="chart-panel">
+                {% if encaissements_mensuels %}
+                <canvas id="monthlyChart"></canvas>
                 {% else %}
                 <p class="table-empty">
                   Les données du graphique seront disponibles après le
                   raccordement aux paiements MySQL.
                 </p>
-                {% endfor %}
+                {% endif %}
               </div>
 
               <p class="demo-note">
@@ -335,5 +328,69 @@
         </section>
       </main>
     </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const chartElement = document.getElementById('monthlyChart');
+        if (!chartElement) return;
+
+        const labels = [
+          {% for mois in encaissements_mensuels %}
+            "{{ mois.nom }}"{% if not loop.last %},{% endif %}
+          {% endfor %}
+        ];
+
+        const values = [
+          {% for mois in encaissements_mensuels %}
+            {{ mois.montant if mois.montant is defined else 0 }}{% if not loop.last %},{% endif %}
+          {% endfor %}
+        ];
+
+        new Chart(chartElement, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Encaissements',
+              data: values,
+              backgroundColor: ['#3B82F6', '#60A5FA', '#22C55E', '#F59E0B', '#A78BFA', '#14B8A6', '#F97316', '#0EA5E9', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444'],
+              borderRadius: 10,
+              borderSkipped: false,
+              maxBarThickness: 36
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: function (context) {
+                    return `${context.parsed.y.toLocaleString('fr-FR')} FC`;
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: function (value) {
+                    return `${Number(value).toLocaleString('fr-FR')}`;
+                  }
+                },
+                grid: { color: 'rgba(148, 163, 184, 0.15)' }
+              },
+              x: {
+                grid: { display: false },
+                ticks: { color: '#64748B' }
+              }
+            }
+          }
+        });
+      });
+    </script>
   </body>
 </html>

@@ -1,43 +1,46 @@
-
-{% extends "base.html" %}
-
-{% block title %}Utilisateurs | Gestion scolaire{% endblock %}
-{% block page_heading %}Utilisateurs{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Utilisateurs | Gestion scolaire{%
+endblock %} {% block page_heading %}Utilisateurs{% endblock %} {% block content
+%}
 <section class="page-header">
-    <div>
-        <p class="eyebrow">SÉCURITÉ ET ACCÈS</p>
-        <h1>Utilisateurs</h1>
-        <p class="muted">Consultez les comptes et leurs rôles dans le système.</p>
-    </div>
+  <div>
+    <p class="eyebrow">SÉCURITÉ ET ACCÈS</p>
+    <h1>Utilisateurs</h1>
+    <p class="muted">Consultez les comptes et leurs rôles dans le système.</p>
+  </div>
+  <a href="{{ url_for('formulaire_utilisateur') }}" class="btn btn-primary"
+    >Créer un compte</a
+  >
 </section>
 
 <section class="panel">
-    <div class="table-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    <th>Nom complet</th>
-                    <th>Identifiant</th>
-                    <th>Rôle</th>
-                    <th>Statut du compte</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for utilisateur in utilisateurs %}
-                <tr>
-                    <td>{{ utilisateur.nom_complet or '—' }}</td>
-                    <td>{{ utilisateur.identifiant or '—' }}</td>
-                    <td>{{ utilisateur.role or '—' }}</td>
-                    <td>{{ utilisateur.statut or '—' }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="4" class="empty-state">Aucun utilisateur à afficher.</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <p class="notice">Les mots de passe ne doivent jamais être affichés dans cette liste. Ils devront être stockés sous forme de hachage sécurisé.</p>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Nom complet</th>
+          <th>Identifiant</th>
+          <th>Rôle</th>
+          <th>Statut du compte</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for utilisateur in utilisateurs %}
+        <tr>
+          <td>{{ utilisateur.nom_complet or '—' }}</td>
+          <td>{{ utilisateur.identifiant or '—' }}</td>
+          <td>{{ utilisateur.role or '—' }}</td>
+          <td>{{ utilisateur.statut or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" class="empty-state">Aucun utilisateur à afficher.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="notice">
+    Les mots de passe ne doivent jamais être affichés dans cette liste.
+  </p>
 </section>
 {% endblock %}

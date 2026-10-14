@@ -239,6 +239,71 @@ def test_teacher_account_requires_linked_profile(monkeypatch):
     assert connection.closed
 
 
+def test_teacher_account_links_user_to_teacher_profile(monkeypatch):
+    statements = []
+
+    class FakeCursor:
+        lastrowid = 21
+        rowcount = 1
+
+        def execute(self, query, parameters=None):
+            statements.append((query, parameters))
+            if "SELECT id FROM enseignants WHERE id = %s AND ecole_id = %s AND statut = 'actif' AND utilisateur_id IS NULL" in query:
+                self.result = {"id": 15}
+                return
+            if "INSERT INTO utilisateurs" in query:
+                self.result = None
+                return
+            if "UPDATE enseignants SET utilisateur_id" in query:
+                self.result = None
+                return
+
+        def fetchone(self):
+            return {"id": 15}
+
+    class FakeConnection:
+        committed = False
+        closed = False
+
+        def cursor(self, **kwargs):
+            return FakeCursor()
+
+        def commit(self):
+            self.committed = True
+
+        def rollback(self):
+            raise AssertionError("Rollback inattendu pendant la création du compte enseignant")
+
+        def close(self):
+            self.closed = True
+
+    connection = FakeConnection()
+    monkeypatch.setattr("app.obtenir_connexion", Mock(return_value=connection))
+
+    with app.test_client() as client:
+        ouvrir_session_admin(client, monkeypatch)
+        response = client.post(
+            "/utilisateurs/nouveau",
+            data={
+                "_csrf_token": "test-csrf-token",
+                "nom": "Professeur",
+                "nom_utilisateur": "prof1",
+                "mot_de_passe": "mhlcode",
+                "role": "enseignant",
+                "enseignant_id": "15",
+            },
+        )
+
+    assert response.status_code == 302
+    assert connection.committed and connection.closed
+    assert any("UPDATE enseignants SET utilisateur_id = %s" in query for query, _ in statements)
+    assert any(
+        parameters and parameters[0] == 21 and parameters[1] == 15 and parameters[2] == 1
+        for _, parameters in statements
+        if isinstance(parameters, tuple)
+    )
+
+
 def test_password_below_development_minimum_is_rejected(monkeypatch):
     with app.test_client() as client:
         ouvrir_session_admin(client, monkeypatch)

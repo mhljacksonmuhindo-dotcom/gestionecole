@@ -9,78 +9,95 @@ scolaire{% endblock %} {% block page_heading %}Compte utilisateur{% endblock %}
   </div>
 </section>
 
-<section class="panel">
-  <form method="POST" action="{{ url_for('formulaire_utilisateur') }}">
+<section class="panel user-form-panel">
+  <div class="user-form-header">
+    <div>
+      <p class="eyebrow">Nouveau compte</p>
+      <h2>Créer un accès</h2>
+    </div>
+    <span class="user-role-badge">Admin</span>
+  </div>
+
+  <form
+    method="POST"
+    action="{{ url_for('formulaire_utilisateur') }}"
+    class="user-form"
+  >
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
-    <div class="form-group">
-      <label for="nom">Nom</label>
-      <input id="nom" name="nom" autocomplete="family-name" required />
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Nom</label>
+        <input id="nom" name="nom" autocomplete="family-name" required />
+      </div>
+
+      <div class="form-group">
+        <label for="postnom">Postnom</label>
+        <input id="postnom" name="postnom" />
+      </div>
+
+      <div class="form-group">
+        <label for="prenom">Prénom</label>
+        <input id="prenom" name="prenom" autocomplete="given-name" />
+      </div>
+
+      <div class="form-group">
+        <label for="nom_utilisateur">Nom d'utilisateur</label>
+        <input
+          id="nom_utilisateur"
+          name="nom_utilisateur"
+          autocomplete="username"
+          required
+        />
+      </div>
+
+      <div class="form-group full-width">
+        <label for="email">Adresse e-mail</label>
+        <input id="email" name="email" type="email" autocomplete="email" />
+      </div>
+
+      <div class="form-group full-width">
+        <label for="mot_de_passe">Mot de passe</label>
+        <input
+          id="mot_de_passe"
+          name="mot_de_passe"
+          type="password"
+          autocomplete="new-password"
+          minlength="{{ password_min_length }}"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="role">Rôle</label>
+        <select id="role" name="role" required>
+          <option value="">Sélectionner un rôle</option>
+          <option value="caissier">Caissière</option>
+          <option value="enseignant">Enseignant</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="enseignant_id">Profil enseignant à associer</label>
+        <select id="enseignant_id" name="enseignant_id">
+          <option value="">Sélectionner si le rôle est enseignant</option>
+          {% for enseignant in enseignants_disponibles %}
+          <option value="{{ enseignant.id }}">
+            {{ enseignant.nom_complet }} · {{ enseignant.matricule }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="postnom">Postnom</label>
-      <input id="postnom" name="postnom" />
+    <div class="info-box">
+      La gestion des accès caisse et enseignant doit être validée avant leur
+      première connexion.
     </div>
 
-    <div class="form-group">
-      <label for="prenom">Prénom</label>
-      <input id="prenom" name="prenom" autocomplete="given-name" />
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Créer le compte</button>
     </div>
-
-    <div class="form-group">
-      <label for="nom_utilisateur">Nom d'utilisateur</label>
-      <input
-        id="nom_utilisateur"
-        name="nom_utilisateur"
-        autocomplete="username"
-        required
-      />
-    </div>
-
-    <div class="form-group">
-      <label for="email">Adresse e-mail</label>
-      <input id="email" name="email" type="email" autocomplete="email" />
-    </div>
-
-    <div class="form-group">
-      <label for="mot_de_passe">Mot de passe</label>
-      <input
-        id="mot_de_passe"
-        name="mot_de_passe"
-        type="password"
-        autocomplete="new-password"
-        minlength="{{ password_min_length }}"
-        required
-      />
-    </div>
-
-    <div class="form-group">
-      <label for="role">Rôle</label>
-      <select id="role" name="role" required>
-        <option value="">Sélectionner un rôle</option>
-        <option value="caissier">Caissière</option>
-        <option value="enseignant">Enseignant</option>
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label for="enseignant_id">Profil enseignant à associer</label>
-      <select id="enseignant_id" name="enseignant_id">
-        <option value="">Sélectionner si le rôle est enseignant</option>
-        {% for enseignant in enseignants_disponibles %}
-        <option value="{{ enseignant.id }}">
-          {{ enseignant.nom_complet }} · {{ enseignant.matricule }}
-        </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <p class="notice">
-      Le mot de passe est stocké sous forme de hachage. La gestion des accès
-      caisse et enseignant doit être validée avant leur première connexion.
-    </p>
-
-    <button type="submit" class="btn btn-primary">Créer le compte</button>
   </form>
 </section>
 {% endblock %}
