@@ -4,6 +4,39 @@ from unittest.mock import Mock
 from app import app, check_password_hash, generate_password_hash
 
 
+def test_dashboard_aggregate_payments_by_month(monkeypatch):
+    class FakeCursor:
+        def __init__(self):
+            self.executed = None
+
+        def execute(self, query, params=None):
+            self.executed = (query, params)
+
+        def fetchall(self):
+            return [
+                {"mois_num": 1, "nom": "Jan", "montant": Decimal("1500")},
+                {"mois_num": 2, "nom": "Fév", "montant": Decimal("3000")},
+            ]
+
+    class FakeConnection:
+        def cursor(self, dictionary=True):
+            return FakeCursor()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr("app.obtenir_connexion", lambda: FakeConnection())
+
+    from app import charger_encaissements_mensuels
+
+    resultat = charger_encaissements_mensuels(1, 7)
+
+    assert resultat == [
+        {"nom": "Jan", "montant": 1500.0, "pourcentage": 50.0},
+        {"nom": "Fév", "montant": 3000.0, "pourcentage": 100.0},
+    ]
+
+
 def ouvrir_session_admin(client, monkeypatch):
     monkeypatch.setattr(
         "app.charger_utilisateur_connecte",

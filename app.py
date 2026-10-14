@@ -389,6 +389,81 @@ def statistiques_dashboard(ecole_id: int) -> dict[str, Any]:
         connexion.close()
 
 
+def charger_encaissements_mensuels(ecole_id: int, annee_scolaire_id: int | None = None) -> list[dict[str, Any]]:
+    connexion = obtenir_connexion()
+    if connexion is None:
+        return []
+
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        if annee_scolaire_id is None:
+            curseur.execute(
+                """
+                SELECT id
+                FROM annees_scolaires
+                WHERE ecole_id = %s AND statut = 'en_cours'
+                ORDER BY date_debut DESC
+                LIMIT 1
+                """,
+                (ecole_id,),
+            )
+            annee = cast(dict[str, Any] | None, curseur.fetchone())
+            if annee is None:
+                return []
+            annee_scolaire_id = int(annee["id"])
+
+        curseur.execute(
+            """
+            SELECT MONTH(p.date_paiement) AS mois_num,
+                   CASE MONTH(p.date_paiement)
+                       WHEN 1 THEN 'Jan' WHEN 2 THEN 'Fév' WHEN 3 THEN 'Mars'
+                       WHEN 4 THEN 'Avr' WHEN 5 THEN 'Mai' WHEN 6 THEN 'Juin'
+                       WHEN 7 THEN 'Juil' WHEN 8 THEN 'Août' WHEN 9 THEN 'Sept'
+                       WHEN 10 THEN 'Oct' WHEN 11 THEN 'Nov' WHEN 12 THEN 'Déc'
+                   END AS nom,
+                   SUM(p.montant_paye) AS montant
+            FROM paiements_eleves p
+            INNER JOIN inscriptions i ON i.id = p.inscription_id
+            INNER JOIN eleves e ON e.id = i.eleve_id
+            WHERE e.ecole_id = %s
+              AND i.annee_scolaire_id = %s
+              AND p.statut = 'valide'
+            GROUP BY MONTH(p.date_paiement), CASE MONTH(p.date_paiement)
+                       WHEN 1 THEN 'Jan' WHEN 2 THEN 'Fév' WHEN 3 THEN 'Mars'
+                       WHEN 4 THEN 'Avr' WHEN 5 THEN 'Mai' WHEN 6 THEN 'Juin'
+                       WHEN 7 THEN 'Juil' WHEN 8 THEN 'Août' WHEN 9 THEN 'Sept'
+                       WHEN 10 THEN 'Oct' WHEN 11 THEN 'Nov' WHEN 12 THEN 'Déc'
+                   END
+            ORDER BY MONTH(p.date_paiement)
+            """,
+            (ecole_id, annee_scolaire_id),
+        )
+        donnees = cast(list[dict[str, Any]], curseur.fetchall())
+        if not donnees:
+            return []
+
+        montants = [Decimal(str(donnee.get("montant") or 0)) for donnee in donnees]
+        montant_max = max(montants) if montants else Decimal("0")
+        if montant_max <= 0:
+            return []
+
+        resultats: list[dict[str, Any]] = []
+        for donnee in donnees:
+            montant = Decimal(str(donnee.get("montant") or 0))
+            pourcentage = 100.0 if montant_max == 0 else float((montant / montant_max) * 100)
+            resultats.append({
+                "nom": donnee.get("nom") or "",
+                "montant": float(montant),
+                "pourcentage": round(pourcentage, 1),
+            })
+        return resultats
+    except Exception:
+        app.logger.exception("Chargement des encaissements mensuels impossible.")
+        return []
+    finally:
+        connexion.close()
+
+
 def charger_table(nom_table) -> tuple[list[dict[str, Any]], str]:
     if not table_existe(nom_table):
         return [], "Aucune donnée n'est disponible tant que la table MySQL n'est pas validée."
@@ -825,14 +900,17 @@ def dashboard():
         return redirect(url_for("page_module", module="paiements_eleves"))
     if g.current_user["role"] == "enseignant":
         return redirect(url_for("espace_enseignant"))
+
+    annee_scolaire_id = request.args.get("annee_scolaire_id", type=int)
     statistiques = statistiques_dashboard(g.current_user["ecole_id"])
+    encaissements_mensuels = charger_encaissements_mensuels(g.current_user["ecole_id"], annee_scolaire_id)
 
     return render_template(
         "dashboard.html",
         statistiques=statistiques,
         current_user=g.current_user,
         annee_scolaire=None,
-        encaissements_mensuels=[],
+        encaissements_mensuels=encaissements_mensuels,
         notifications=[],
         derniers_paiements=[],
     )
