@@ -1,39 +1,41 @@
-{% extends "base.html" %} {% block title %}Nouvelle classe | Gestion scolaire{%
-endblock %} {% block page_heading %}Nouvelle classe{% endblock %} {% block
-content %}
+{% extends "base.html" %} {% block title %}{{ 'Modifier la division' if classe is defined and classe else 'Nouvelle division' }} | Gestion scolaire{% endblock %} {% block page_heading %}{{ 'Modifier la division' if classe is defined and classe else 'Nouvelle division' }}{% endblock %} {% block content %}
 <section class="page-header">
   <div>
     <p class="eyebrow">ORGANISATION SCOLAIRE</p>
-    <h1>Créer une classe</h1>
-    <p class="muted">La classe reste rattachée à son année scolaire.</p>
+    <h1>{{ 'Modifier la division' if classe is defined and classe else 'Créer une division' }}</h1>
+    <p class="muted">Chaque division est rattachée à un niveau et à une année scolaire.</p>
   </div>
 </section>
 <section class="panel">
-  {% if not annees %}
+  {% if classe is not defined and not annees %}
   <p class="notice">Créez d'abord une année scolaire pour cet établissement.</p>
   {% else %}
-  <form method="POST" action="{{ url_for('formulaire_classe') }}">
+  <form method="POST" action="{{ url_for('modifier_classe', classe_id=classe.id) if classe is defined and classe else url_for('formulaire_classe') }}">
     <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
     <div class="form-grid">
       <div class="form-group">
-        <label for="nom">Nom de la classe</label>
-        <input id="nom" name="nom" maxlength="100" required />
+        <label for="nom">Désignation (A, B, C…)</label>
+        <input id="nom" name="nom" maxlength="100" value="{{ classe.nom if classe is defined and classe else '' }}" placeholder="Ex. A" required />
       </div>
       <div class="form-group">
         <label for="niveau">Niveau</label>
         <select id="niveau" name="niveau" required>
           <option value="">Sélectionner</option>
-          <option value="1ere_primaire">1re primaire</option>
-          <option value="2eme_primaire">2e primaire</option>
-          <option value="3eme_primaire">3e primaire</option>
-          <option value="4eme_primaire">4e primaire</option>
-          <option value="5eme_primaire">5e primaire</option>
-          <option value="6eme_primaire">6e primaire</option>
-          <option value="autre">Autre</option>
+          <option value="1ere_primaire" {{ 'selected' if classe is defined and classe and classe.niveau == '1ere_primaire' }}>1re primaire</option>
+          <option value="2eme_primaire" {{ 'selected' if classe is defined and classe and classe.niveau == '2eme_primaire' }}>2e primaire</option>
+          <option value="3eme_primaire" {{ 'selected' if classe is defined and classe and classe.niveau == '3eme_primaire' }}>3e primaire</option>
+          <option value="4eme_primaire" {{ 'selected' if classe is defined and classe and classe.niveau == '4eme_primaire' }}>4e primaire</option>
+          <option value="5eme_primaire" {{ 'selected' if classe is defined and classe and classe.niveau == '5eme_primaire' }}>5e primaire</option>
+          <option value="6eme_primaire" {{ 'selected' if classe is defined and classe and classe.niveau == '6eme_primaire' }}>6e primaire</option>
+          <option value="autre" {{ 'selected' if classe is defined and classe and classe.niveau == 'autre' }}>Autre</option>
         </select>
       </div>
       <div class="form-group">
         <label for="annee_scolaire_id">Année scolaire</label>
+        {% if classe is defined and classe %}
+        <input id="annee_scolaire_id" value="{{ classe.annee_scolaire }}" disabled />
+        <small class="muted">L'année d'une division existante ne peut pas être modifiée.</small>
+        {% else %}
         <select id="annee_scolaire_id" name="annee_scolaire_id" required>
           <option value="">Sélectionner</option>
           {% for annee in annees %} {% if annee.statut != 'terminee' %}
@@ -42,6 +44,7 @@ content %}
           </option>
           {% endif %} {% endfor %}
         </select>
+        {% endif %}
       </div>
       <div class="form-group">
         <label for="capacite">Capacité</label>
@@ -50,7 +53,7 @@ content %}
           name="capacite"
           type="number"
           min="1"
-          value="50"
+          value="{{ classe.capacite if classe is defined and classe else 50 }}"
           required
         />
       </div>
@@ -61,9 +64,7 @@ content %}
         href="{{ url_for('page_module', module='classes') }}"
         >Annuler</a
       >
-      <button class="btn btn-primary" type="submit">
-        Enregistrer la classe
-      </button>
+      <button class="btn btn-primary" type="submit">{{ 'Enregistrer les modifications' if classe is defined and classe else 'Créer la division' }}</button>
     </div>
   </form>
   {% endif %}

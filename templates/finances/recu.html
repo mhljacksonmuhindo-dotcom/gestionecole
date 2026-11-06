@@ -3,17 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reçu de paiement scolaire</title>
+    <title>Reçu de paiement scolaire | GESTION ÉCOLE</title>
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
     />
   </head>
   <body>
-    <main class="receipt">
+    <main class="receipt {% if paiement.statut == 'annule' %}receipt-cancelled-border{% endif %}">
+      {% if paiement.statut == 'annule' %}
+      <div class="watermark-cancelled">
+        DOCUMENT ANNULÉ
+      </div>
+      <div class="alert alert-danger" style="margin-bottom: 1rem; text-align: center; border: 2px dashed #b91c1c; font-weight: bold;">
+        ⚠️ CE REÇU A ÉTÉ ANNULÉ LE {{ paiement.date_annulation or '' }}<br>
+        <span style="font-size: 0.9em; font-weight: normal;">Motif : {{ paiement.motif_annulation or 'Annulation administrative' }}</span>
+      </div>
+      {% endif %}
+
       <header class="receipt-header">
         <h1>{{ ecole.nom if ecole else "École primaire" }}</h1>
-        <p>REÇU DE PAIEMENT SCOLAIRE</p>
+        <p>REÇU OFFICIEL DE PAIEMENT SCOLAIRE</p>
         <strong>N° {{ paiement.numero_recu or 'À attribuer' }}</strong>
       </header>
 
@@ -23,14 +33,33 @@
         <p><strong>Classe :</strong> {{ paiement.classe or '—' }}</p>
         <p><strong>Type de frais :</strong> {{ paiement.type_frais or '—' }}</p>
         <p>
-          <strong>Montant payé :</strong> {{ paiement.montant }} {{
-          paiement.devise or '' }}
+          <strong>Montant payé :</strong>
+          <span style="font-size: 1.1em; font-weight: bold;">
+            {{ paiement.montant }} {{ paiement.devise or 'USD' }}
+          </span>
         </p>
-        <p><strong>Date :</strong> {{ paiement.date_paiement or '—' }}</p>
-        <p><strong>Caissier :</strong> {{ paiement.caissier or '—' }}</p>
+        <p><strong>Mode de règlement :</strong> {{ paiement.mode_paiement | capitalize if paiement.mode_paiement else 'Espèces' }}</p>
+        {% if paiement.reference_paiement %}
+        <p><strong>Référence transaction :</strong> {{ paiement.reference_paiement }}</p>
+        {% endif %}
+        <p><strong>Date d'encaissement :</strong> {{ paiement.date_paiement or '—' }}</p>
+        <p><strong>Caissier / Agent :</strong> {{ paiement.caissier or '—' }}</p>
+        <p><strong>Statut :</strong> 
+          {% if paiement.statut == 'valide' %}
+            <span style="color: #15803d; font-weight: bold;">PAYÉ / VALIDE</span>
+          {% else %}
+            <span style="color: #b91c1c; font-weight: bold;">ANNULÉ</span>
+          {% endif %}
+        </p>
       </div>
 
-      <p class="receipt-thanks">Merci pour votre paiement.</p>
+      <p class="receipt-thanks">
+        {% if paiement.statut == 'valide' %}
+          Merci pour votre contribution à l'éducation de votre enfant.
+        {% else %}
+          Ce reçu n'est plus valable à des fins comptables ou administratives.
+        {% endif %}
+      </p>
 
       <div class="receipt-actions no-print">
         <button type="button" class="btn btn-primary" onclick="window.print()">

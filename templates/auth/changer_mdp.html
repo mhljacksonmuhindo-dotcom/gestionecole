@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Changer votre mot de passe | GESTION ÉCOLE</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  </head>
+  <body class="login-body">
+    <main class="login-container">
+      <section class="login-brand">
+        <div class="brand-logo login-logo">GE</div>
+        <p class="eyebrow">SÉCURITÉ OBLIGATOIRE</p>
+        <h1>Mise à jour du mot de passe</h1>
+        <p>
+          Pour des raisons de sécurité, vous devez définir votre propre mot de passe personnel avant de pouvoir accéder au système.
+        </p>
+      </section>
+
+      <section class="login-card">
+        <h2>Nouveau mot de passe</h2>
+        <p class="muted">Choisissez un mot de passe fort que vous garderez confidentiel.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('changer_mot_de_passe') }}">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+          
+          <div class="form-group">
+            <label for="nouveau_mot_de_passe">Nouveau mot de passe (min. {{ password_min_length }} caractères) *</label>
+            <input
+              type="password"
+              id="nouveau_mot_de_passe"
+              name="nouveau_mot_de_passe"
+              autocomplete="new-password"
+              placeholder="Votre nouveau mot de passe"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="confirmer_mot_de_passe">Confirmer le nouveau mot de passe *</label>
+            <input
+              type="password"
+              id="confirmer_mot_de_passe"
+              name="confirmer_mot_de_passe"
+              autocomplete="new-password"
+              placeholder="Répétez le mot de passe"
+              required
+            />
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-full">
+            Valider et continuer
+          </button>
+        </form>
+
+        <form method="POST" action="{{ url_for('deconnexion') }}" style="margin-top: 1rem; text-align: center;">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="btn btn-link" style="color: #64748b; font-size: 0.9rem;">
+            Se déconnecter
+          </button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

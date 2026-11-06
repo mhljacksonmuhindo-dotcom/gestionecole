@@ -1,11 +1,4 @@
--- phpMyAdmin SQL Dump
--- version 5.2.1
--- https://www.phpmyadmin.net/
---
--- Hôte : 127.0.0.1
--- Généré le : jeu. 15 oct. 2026 à 12:01
--- Version du serveur : 10.4.32-MariaDB
--- Version de PHP : 8.0.30
+
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -23,9 +16,7 @@ SET time_zone = "+00:00";
 
 -- --------------------------------------------------------
 
---
--- Structure de la table `affectations_enseignants`
---
+
 
 CREATE TABLE `affectations_enseignants` (
   `id` int(11) NOT NULL,
@@ -38,11 +29,7 @@ CREATE TABLE `affectations_enseignants` (
   `statut` enum('active','terminee') DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- --------------------------------------------------------
 
---
--- Structure de la table `annees_scolaires`
---
 
 CREATE TABLE `annees_scolaires` (
   `id` int(11) NOT NULL,
@@ -61,11 +48,6 @@ CREATE TABLE `annees_scolaires` (
 INSERT INTO `annees_scolaires` (`id`, `ecole_id`, `libelle`, `date_debut`, `date_fin`, `statut`, `date_creation`) VALUES
 (1, 1, '2026-2027', '2026-09-02', '2027-07-02', 'en_cours', '2026-10-14 18:07:33');
 
--- --------------------------------------------------------
-
---
--- Structure de la table `classes`
---
 
 CREATE TABLE `classes` (
   `id` int(11) NOT NULL,
@@ -78,9 +60,7 @@ CREATE TABLE `classes` (
   `statut` enum('active','inactive') DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Déchargement des données de la table `classes`
---
+
 
 INSERT INTO `classes` (`id`, `ecole_id`, `annee_scolaire_id`, `nom`, `niveau`, `capacite`, `frais_inscription`, `statut`) VALUES
 (1, 1, 1, 'A', '1ere_primaire', 50, 0.00, 'active'),
@@ -197,7 +177,12 @@ CREATE TABLE `inscriptions` (
   `date_inscription` date NOT NULL,
   `montant_inscription` decimal(12,2) DEFAULT 0.00,
   `statut` enum('inscrit','transfere','abandonne','termine') DEFAULT 'inscrit',
+  `decision_fin_annee` enum('admis','redouble','a_traiter') DEFAULT NULL,
+  `date_decision` date DEFAULT NULL,
+  `decision_par` int(11) DEFAULT NULL,
   `observations` text DEFAULT NULL,
+  `motif_retrait` text DEFAULT NULL,
+  `date_retrait` date DEFAULT NULL,
   `date_creation` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -237,11 +222,7 @@ INSERT INTO `journal_activites` (`id`, `utilisateur_id`, `action`, `table_concer
 (5, 1, 'création', 'eleves', 1, 'Création d\'un dossier élève.', '127.0.0.1', '2026-10-14 18:12:01'),
 (6, 1, 'inscription', 'inscriptions', 1, 'Inscription dans la classe sélectionnée.', '127.0.0.1', '2026-10-14 18:12:01');
 
--- --------------------------------------------------------
 
---
--- Structure de la table `notifications`
---
 
 CREATE TABLE `notifications` (
   `id` int(11) NOT NULL,
@@ -272,6 +253,9 @@ CREATE TABLE `paiements_eleves` (
   `commentaire` text DEFAULT NULL,
   `encaisse_par` int(11) DEFAULT NULL,
   `statut` enum('valide','annule') DEFAULT 'valide',
+  `motif_annulation` text DEFAULT NULL,
+  `annule_par` int(11) DEFAULT NULL,
+  `date_annulation` datetime DEFAULT NULL,
   `date_creation` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -421,6 +405,7 @@ CREATE TABLE `utilisateurs` (
   `role` enum('administrateur','caissier','enseignant') NOT NULL,
   `statut` enum('actif','inactif','bloque') DEFAULT 'actif',
   `derniere_connexion` datetime DEFAULT NULL,
+  `doit_changer_mdp` tinyint(1) DEFAULT 0,
   `date_creation` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -456,7 +441,7 @@ ALTER TABLE `annees_scolaires`
 --
 ALTER TABLE `classes`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `annee_scolaire_id` (`annee_scolaire_id`,`nom`),
+  ADD UNIQUE KEY `annee_niveau_division` (`annee_scolaire_id`,`niveau`,`nom`),
   ADD KEY `ecole_id` (`ecole_id`);
 
 --
@@ -751,7 +736,8 @@ ALTER TABLE `enseignants`
 ALTER TABLE `inscriptions`
   ADD CONSTRAINT `inscriptions_ibfk_1` FOREIGN KEY (`eleve_id`) REFERENCES `eleves` (`id`),
   ADD CONSTRAINT `inscriptions_ibfk_2` FOREIGN KEY (`classe_id`) REFERENCES `classes` (`id`),
-  ADD CONSTRAINT `inscriptions_ibfk_3` FOREIGN KEY (`annee_scolaire_id`) REFERENCES `annees_scolaires` (`id`);
+  ADD CONSTRAINT `inscriptions_ibfk_3` FOREIGN KEY (`annee_scolaire_id`) REFERENCES `annees_scolaires` (`id`),
+  ADD CONSTRAINT `inscriptions_ibfk_4` FOREIGN KEY (`decision_par`) REFERENCES `utilisateurs` (`id`) ON DELETE SET NULL;
 
 --
 -- Contraintes pour la table `journal_activites`
@@ -772,7 +758,8 @@ ALTER TABLE `notifications`
 ALTER TABLE `paiements_eleves`
   ADD CONSTRAINT `paiements_eleves_ibfk_1` FOREIGN KEY (`inscription_id`) REFERENCES `inscriptions` (`id`),
   ADD CONSTRAINT `paiements_eleves_ibfk_2` FOREIGN KEY (`type_frais_id`) REFERENCES `types_frais` (`id`),
-  ADD CONSTRAINT `paiements_eleves_ibfk_3` FOREIGN KEY (`encaisse_par`) REFERENCES `utilisateurs` (`id`) ON DELETE SET NULL;
+  ADD CONSTRAINT `paiements_eleves_ibfk_3` FOREIGN KEY (`encaisse_par`) REFERENCES `utilisateurs` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `paiements_eleves_ibfk_4` FOREIGN KEY (`annule_par`) REFERENCES `utilisateurs` (`id`) ON DELETE SET NULL;
 
 --
 -- Contraintes pour la table `paiements_enseignants`

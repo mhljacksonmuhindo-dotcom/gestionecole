@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Modifier le type de frais | GESTION ÉCOLE{% endblock %}
+{% block page_heading %}Modifier le frais scolaire{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow"><a href="{{ url_for('page_module', module='frais') }}">← Retour aux frais scolaires</a></p>
+    <h1>Modifier : {{ frais.nom }}</h1>
+    <p class="muted">Année scolaire : <strong>{{ frais.annee_scolaire }}</strong></p>
+  </div>
+</section>
+
+<section class="panel form-panel">
+  {% if nb_paiements > 0 %}
+  <div class="alert alert-warning">
+    <strong>Verrouillage comptable :</strong> Ce type de frais est déjà rattaché à <strong>{{ nb_paiements }} transaction(s) financière(s)</strong>.
+    Son montant historique ne peut plus être modifié rétroactivement. Vous pouvez mettre à jour le libellé, la description, la date limite ou désactiver ce frais.
+  </div>
+  {% endif %}
+
+  <form method="POST">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Libellé du frais *</label>
+        <input type="text" id="nom" name="nom" class="form-control" maxlength="100" required value="{{ frais.nom }}">
+      </div>
+
+      <div class="form-group">
+        <label for="montant">Montant prévu (USD) *</label>
+        {% if nb_paiements > 0 %}
+          <input type="text" id="montant" name="montant_affiche" class="form-control" value="{{ frais.montant }}" disabled readonly>
+          <small class="muted">Montant verrouillé pour préserver l'historique comptable.</small>
+        {% else %}
+          <input type="number" id="montant" name="montant" class="form-control" min="0" step="0.01" required value="{{ frais.montant }}">
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label for="date_limite">Date limite (facultatif)</label>
+        <input type="date" id="date_limite" name="date_limite" class="form-control" value="{{ frais.date_limite or '' }}">
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" class="form-control" rows="2">{{ frais.description or '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="obligatoire" {% if frais.obligatoire %}checked{% endif %}>
+          Frais obligatoire
+        </label>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <a class="btn btn-outline" href="{{ url_for('page_module', module='frais') }}">Annuler</a>
+      <button class="btn btn-primary" type="submit">Enregistrer les modifications</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

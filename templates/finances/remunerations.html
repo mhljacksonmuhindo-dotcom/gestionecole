@@ -34,7 +34,8 @@ endblock %} {% block page_heading %}Rémunérations des enseignants{% endblock %
         <tr>
           <td>{{ remuneration.enseignant or '—' }}</td>
           <td>
-            {{ '%02d'|format(remuneration.mois) }}/{{ remuneration.annee }}
+            {{ 
+            format(remuneration.mois) }}/{{ remuneration.annee }}
           </td>
           <td>
             {{ remuneration.total_jours_presents or 0 }} / {{

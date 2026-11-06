@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Élèves de {{ classe.nom }} | GESTION ÉCOLE{% endblock %}
+{% block page_heading %}Élèves de la classe : {{ classe.nom }}{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow"><a href="{{ url_for('page_module', module='classes') }}">← Retour aux classes</a></p>
+    <h1>Classe {{ classe.nom }} ({{ classe.annee_scolaire }})</h1>
+    <p class="muted">
+      Niveau :
+      {% if classe.niveau == '1ere_primaire' %}1ère primaire
+      {% elif classe.niveau == '2eme_primaire' %}2ème primaire
+      {% elif classe.niveau == '3eme_primaire' %}3ème primaire
+      {% elif classe.niveau == '4eme_primaire' %}4ème primaire
+      {% elif classe.niveau == '5eme_primaire' %}5ème primaire
+      {% elif classe.niveau == '6eme_primaire' %}6ème primaire
+      {% else %}{{ classe.niveau or '—' }}{% endif %}
+      | Enseignant : <strong>{{ classe.enseignant_titulaire or 'Non assigné' }}</strong>
+      | Effectif réel actif : <strong>{{ eleves | length }} élève(s)</strong>
+    </p>
+  </div>
+  {% if current_user.role == 'administrateur' %}
+  <a class="btn btn-primary" href="{{ url_for('formulaire_eleve') }}">+ Inscrire un élève</a>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Liste des élèves inscrits (Année {{ classe.annee_scolaire }})</h2>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Matricule</th>
+          <th>Nom complet</th>
+          <th>Sexe</th>
+          <th>Date inscription</th>
+          <th>Statut</th>
+          <th>Décision fin d'année</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for eleve in eleves %}
+        <tr>
+          <td><code>{{ eleve.matricule }}</code></td>
+          <td><strong>{{ eleve.nom_complet }}</strong></td>
+          <td>{{ eleve.sexe }}</td>
+          <td>{{ eleve.date_inscription }}</td>
+          <td>
+            <span class="badge badge-success">{{ eleve.statut_inscription }}</span>
+          </td>
+          <td>
+            {% if eleve.decision_fin_annee == 'admis' %}
+              <span class="badge badge-success">Passe</span>
+            {% elif eleve.decision_fin_annee == 'redouble' %}
+              <span class="badge badge-warning">Redouble</span>
+            {% elif eleve.decision_fin_annee == 'a_traiter' %}
+              <span class="badge badge-danger">À traiter</span>
+            {% else %}
+              <span class="muted">En attente</span>
+            {% endif %}
+          </td>
+          <td class="table-actions">
+            <a class="btn btn-sm btn-outline" href="{{ url_for('detail_eleve', eleve_id=eleve.eleve_id) }}">Dossier</a>
+            
+            {% if current_user.role in ['administrateur', 'caissier'] %}
+            <!-- Bouton Retirer de la classe (Section 9.A) -->
+            <button type="button" class="btn btn-sm btn-warning" onclick="ouvrirModalRetrait('{{ eleve.inscription_id }}', '{{ eleve.nom_complet | escape }}')">
+              Retirer classe
+            </button>
+            {% endif %}
+
+            {% if current_user.role == 'administrateur' %}
+            <!-- Bouton Clôturer inscription école (Section 9.B) -->
+            <button type="button" class="btn btn-sm btn-danger" onclick="ouvrirModalCloture('{{ eleve.inscription_id }}', '{{ eleve.nom_complet | escape }}')">
+              Départ école
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">
+            Aucun élève n'est actuellement inscrit dans cette classe pour l'année scolaire sélectionnée.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Modal Retrait de classe (Section 9.A) -->
+<div id="modalRetrait" class="modal-overlay" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Retirer un élève de sa classe</h3>
+      <button type="button" class="modal-close" onclick="fermerModals()">&times;</button>
+    </div>
+    <form method="POST" id="formRetraitClasse" action="">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body">
+        <p>Élève : <strong id="retraitNomEleve"></strong></p>
+        <p class="muted">Cette action retire l'élève de sa classe actuelle sans supprimer son dossier ni son historique financier.</p>
+        
+        <div class="form-group">
+          <label for="date_retrait">Date du retrait *</label>
+          <input type="date" id="date_retrait" name="date_retrait" class="form-control" required value="{{ date_jour }}">
+        </div>
+        
+        <div class="form-group">
+          <label for="motif_retrait">Motif du retrait *</label>
+          <textarea id="motif_retrait" name="motif_retrait" class="form-control" rows="3" required placeholder="Exemple : Changement de section, transfert interne, demande parentale..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="fermerModals()">Annuler</button>
+        <button type="submit" class="btn btn-warning">Confirmer le retrait de la classe</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Clôture Inscription École (Section 9.B) -->
+<div id="modalCloture" class="modal-overlay" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Clôturer l'inscription d'un élève (Départ de l'école)</h3>
+      <button type="button" class="modal-close" onclick="fermerModals()">&times;</button>
+    </div>
+    <form method="POST" id="formClotureEcole" action="">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body">
+        <p>Élève : <strong id="clotureNomEleve"></strong></p>
+        <p class="alert alert-warning">
+          <strong>Important :</strong> L'élève sera exclu des inscriptions actives de l'école. Tous ses paiements, reçus, dettes et son historique complet restent conservés dans le système.
+        </p>
+        
+        <div class="form-group">
+          <label for="date_cloture">Date de départ / clôture *</label>
+          <input type="date" id="date_cloture" name="date_cloture" class="form-control" required value="{{ date_jour }}">
+        </div>
+        
+        <div class="form-group">
+          <label for="motif_cloture">Motif administratif ou de départ *</label>
+          <textarea id="motif_cloture" name="motif_cloture" class="form-control" rows="3" required placeholder="Exemple : Déménagement familial, départ définitif de Butembo, exclusion disciplinaire..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="fermerModals()">Annuler</button>
+        <button type="submit" class="btn btn-danger">Confirmer la clôture de l'inscription</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function ouvrirModalRetrait(inscriptionId, nomEleve) {
+  document.getElementById('retraitNomEleve').textContent = nomEleve;
+  document.getElementById('formRetraitClasse').action = '/inscriptions/' + inscriptionId + '/retirer-classe';
+  document.getElementById('modalRetrait').style.display = 'flex';
+}
+
+function ouvrirModalCloture(inscriptionId, nomEleve) {
+  document.getElementById('clotureNomEleve').textContent = nomEleve;
+  document.getElementById('formClotureEcole').action = '/inscriptions/' + inscriptionId + '/cloturer-ecole';
+  document.getElementById('modalCloture').style.display = 'flex';
+}
+
+function fermerModals() {
+  document.getElementById('modalRetrait').style.display = 'none';
+  document.getElementById('modalCloture').style.display = 'none';
+}
+</script>
+{% endblock %}

@@ -48,17 +48,13 @@ scolaire{% endblock %} {% block page_heading %}Dossier enseignant{% endblock %}
       </div>
     </div>
 
-    <div class="notice">
-      Chaque enregistrement est validé côté serveur et ne s'exécute que si la
-      table MySQL correspondante est disponible.
-    </div>
+    
 
     <div class="form-actions">
       <a
         href="{{ url_for('page_module', module='enseignants') }}"
         class="btn btn-secondary"
-        >Retour</a
-      >
+        >Retour </a>
       <button type="submit" class="btn btn-primary">
         Enregistrer le dossier
       </button>

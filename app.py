@@ -11,6 +11,7 @@ from flask import Flask, abort, g, render_template, redirect, url_for, flash, re
 from mysql.connector import Error
 from database import obtenir_connexion
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 environment = os.environ.get("APP_ENV", "development").lower()
@@ -132,10 +133,12 @@ def trouver_utilisateur(identifiant):
         curseur = connexion.cursor(dictionary=True)
         curseur.execute(
             """
-            SELECT id, ecole_id, nom, postnom, prenom, nom_utilisateur,
-                   email, mot_de_passe, role, statut
-            FROM utilisateurs
-            WHERE nom_utilisateur = %s OR email = %s
+            SELECT u.id, u.ecole_id, u.nom, u.postnom, u.prenom, u.nom_utilisateur,
+                   u.email, u.mot_de_passe, u.role, u.statut, u.doit_changer_mdp,
+                   e.statut AS statut_ecole, e.nom AS nom_ecole
+            FROM utilisateurs u
+            INNER JOIN ecoles e ON e.id = u.ecole_id
+            WHERE u.nom_utilisateur = %s OR u.email = %s
             LIMIT 1
             """,
             (identifiant, identifiant),
@@ -157,8 +160,9 @@ def charger_utilisateur_connecte(utilisateur_id):
         curseur = connexion.cursor(dictionary=True)
         curseur.execute(
             """
-                 SELECT u.id, u.ecole_id, u.nom, u.postnom, u.prenom, u.role, u.statut,
-                     e.statut AS statut_ecole
+                 SELECT u.id, u.ecole_id, u.nom, u.postnom, u.prenom, u.nom_utilisateur,
+                        u.role, u.statut, u.doit_changer_mdp,
+                        e.statut AS statut_ecole, e.nom AS nom_ecole
                  FROM utilisateurs u
                  INNER JOIN ecoles e ON e.id = u.ecole_id
                  WHERE u.id = %s
@@ -209,6 +213,7 @@ def injecter_contexte_securite():
         "csrf_token": obtenir_csrf_token,
         "current_user": getattr(g, "current_user", None),
         "password_min_length": app.config["PASSWORD_MIN_LENGTH"],
+        "date_jour": date.today().isoformat(),
     }
 
 
@@ -232,28 +237,56 @@ def proteger_requetes():
     except RuntimeError:
         abort(503)
 
-    if not utilisateur or utilisateur.get("statut") != "actif" or utilisateur.get("statut_ecole") == "inactive":
+    if not utilisateur:
         session.clear()
         return redirect(url_for("connexion"))
+
+    # Contrôle strict du statut de l'école côté serveur (Section 4)
+    if utilisateur.get("statut_ecole") == "inactive":
+        session.clear()
+        flash("L'accès à l'application est suspendu car l'établissement scolaire est actuellement désactivé. Veuillez contacter la direction.", "warning")
+        return redirect(url_for("connexion"))
+
+    # Contrôle strict du statut individuel du compte (Section 5)
+    if utilisateur.get("statut") != "actif":
+        session.clear()
+        flash("Votre compte utilisateur a été désactivé ou suspendu. Veuillez contacter l'administrateur.", "danger")
+        return redirect(url_for("connexion"))
+
+    # Forçage du changement de mot de passe provisoire (Section 5)
+    if utilisateur.get("doit_changer_mdp"):
+        if request.endpoint not in {"changer_mot_de_passe", "deconnexion", "static"}:
+            flash("Vous devez obligatoirement définir votre mot de passe personnel avant de continuer.", "warning")
+            return redirect(url_for("changer_mot_de_passe"))
 
     g.current_user = utilisateur
     if utilisateur.get("role") == "administrateur":
         return None
+
     if utilisateur.get("role") == "caissier":
         modules_autorises = {"eleves", "paiements_eleves"}
-        if request.endpoint in {"accueil", "dashboard"}:
+        if request.endpoint in {"accueil", "dashboard", "changer_mot_de_passe"}:
             return None
         view_args = request.view_args or {}
         if request.endpoint == "page_module" and view_args.get("module") in modules_autorises:
             return None
-        if request.endpoint in {"formulaire_paiement_eleve", "recu_paiement", "detail_eleve"}:
+        if request.endpoint in {
+            "formulaire_paiement_eleve", "recu_paiement", "detail_eleve",
+            "annuler_paiement_eleve", "eleves_classe", "retirer_eleve_classe"
+        }:
             return None
         abort(403)
+
     if utilisateur.get("role") == "enseignant":
-        if request.endpoint in {"accueil", "dashboard", "notifications_enseignant", "espace_enseignant"}:
+        if request.endpoint in {
+            "accueil", "dashboard", "notifications_enseignant", "espace_enseignant",
+            "eleves_classe", "enregistrer_decision_fin_annee", "changer_mot_de_passe"
+        }:
             return None
         if request.endpoint == "marquer_notification_lue":
             return None
+        abort(403)
+
     abort(403)
 
 
@@ -499,12 +532,16 @@ def charger_module(module: str, ecole_id: int | None = None) -> tuple[list[dict[
         ),
         "classes": (
             """
-            SELECT c.*, a.libelle AS annee_scolaire, COUNT(i.id) AS effectif
+            SELECT c.*, a.libelle AS annee_scolaire, COUNT(DISTINCT i.id) AS effectif,
+                   CONCAT_WS(' ', ens.nom, ens.postnom, ens.prenom) AS enseignant_titulaire
             FROM classes c
             INNER JOIN annees_scolaires a ON a.id = c.annee_scolaire_id
             LEFT JOIN inscriptions i ON i.classe_id = c.id AND i.statut = 'inscrit'
+            LEFT JOIN affectations_enseignants af ON af.classe_id = c.id
+                 AND af.annee_scolaire_id = a.id AND af.statut = 'active' AND af.date_fin IS NULL
+            LEFT JOIN enseignants ens ON ens.id = af.enseignant_id
             WHERE c.ecole_id = %s
-            GROUP BY c.id, a.libelle
+            GROUP BY c.id, a.libelle, ens.id
             ORDER BY a.date_debut DESC, c.niveau, c.nom LIMIT 100
             """,
             (ecole_id,),
@@ -537,7 +574,13 @@ def charger_module(module: str, ecole_id: int | None = None) -> tuple[list[dict[
             (ecole_id,),
         ),
         "frais": (
-            "SELECT * FROM types_frais WHERE ecole_id = %s ORDER BY nom LIMIT 100",
+            """
+            SELECT f.*, a.libelle AS annee_scolaire
+            FROM types_frais f
+            INNER JOIN annees_scolaires a ON a.id = f.annee_scolaire_id
+            WHERE f.ecole_id = %s
+            ORDER BY a.date_debut DESC, f.nom LIMIT 100
+            """,
             (ecole_id,),
         ),
         "paiements_eleves": (
@@ -630,7 +673,8 @@ def charger_module(module: str, ecole_id: int | None = None) -> tuple[list[dict[
         "utilisateurs": (
             """
             SELECT id, CONCAT_WS(' ', nom, postnom, prenom) AS nom_complet,
-                   nom_utilisateur AS identifiant, role, statut
+                   nom_utilisateur AS identifiant, role, statut,
+                   derniere_connexion, date_creation
             FROM utilisateurs WHERE ecole_id = %s ORDER BY nom, prenom LIMIT 100
             """,
             (ecole_id,),
@@ -934,7 +978,7 @@ def connexion():
             return render_template("auth/connexion.html"), 503
 
         mot_de_passe_valide = False
-        if utilisateur and utilisateur.get("statut") == "actif":
+        if utilisateur:
             try:
                 mot_de_passe_valide = check_password_hash(
                     utilisateur.get("mot_de_passe", ""), mot_de_passe
@@ -946,6 +990,16 @@ def connexion():
             flash("Identifiant ou mot de passe incorrect.", "danger")
             return render_template("auth/connexion.html")
 
+        # Contrôle strict du statut de l'école (Section 4)
+        if utilisateur.get("statut_ecole") == "inactive":
+            flash("L'accès à l'application est suspendu car l'établissement scolaire est actuellement désactivé. Veuillez contacter la direction.", "warning")
+            return render_template("auth/connexion.html")
+
+        # Contrôle strict du statut individuel du compte (Section 5)
+        if utilisateur.get("statut") != "actif":
+            flash("Ce compte utilisateur est inactif ou désactivé. Veuillez contacter l'administrateur.", "danger")
+            return render_template("auth/connexion.html")
+
         if not enregistrer_derniere_connexion(utilisateur["id"]):
             flash("La connexion est temporairement indisponible.", "danger")
             return render_template("auth/connexion.html"), 503
@@ -954,6 +1008,11 @@ def connexion():
         session.permanent = True
         session["user_id"] = int(utilisateur["id"])
         session["_csrf_token"] = secrets.token_urlsafe(32)
+
+        if utilisateur.get("doit_changer_mdp"):
+            flash("Veuillez définir votre mot de passe personnel avant de continuer.", "info")
+            return redirect(url_for("changer_mot_de_passe"))
+
         return redirect(url_for("dashboard"))
 
     return render_template("auth/connexion.html")
@@ -964,6 +1023,64 @@ def deconnexion():
     session.clear()
     flash("Vous êtes déconnecté.", "info")
     return redirect(url_for("connexion"))
+
+
+@app.route("/changer-mot-de-passe", methods=["GET", "POST"])
+def changer_mot_de_passe():
+    utilisateur_id = session.get("user_id")
+    if not utilisateur_id:
+        return redirect(url_for("connexion"))
+
+    if request.method == "POST":
+        nouveau_mdp = request.form.get("nouveau_mot_de_passe") or ""
+        confirmer_mdp = request.form.get("confirmer_mot_de_passe") or ""
+
+        if not nouveau_mdp or not confirmer_mdp:
+            flash("Veuillez renseigner et confirmer votre nouveau mot de passe.", "danger")
+            return render_template("auth/changer_mdp.html")
+
+        if nouveau_mdp != confirmer_mdp:
+            flash("Les deux mots de passe saisis ne correspondent pas.", "danger")
+            return render_template("auth/changer_mdp.html")
+
+        min_len = app.config["PASSWORD_MIN_LENGTH"]
+        if len(nouveau_mdp) < min_len:
+            flash(f"Le mot de passe doit comporter au moins {min_len} caractères.", "danger")
+            return render_template("auth/changer_mdp.html")
+
+        connexion = obtenir_connexion()
+        if connexion is None:
+            flash("La base de données est indisponible.", "danger")
+            return render_template("auth/changer_mdp.html"), 503
+
+        try:
+            connexion.start_transaction()
+            curseur = connexion.cursor()
+            curseur.execute(
+                "UPDATE utilisateurs SET mot_de_passe = %s, doit_changer_mdp = 0 WHERE id = %s",
+                (generate_password_hash(nouveau_mdp), utilisateur_id),
+            )
+            curseur.execute(
+                """
+                INSERT INTO journal_activites
+                    (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (utilisateur_id, "modification", "utilisateurs", utilisateur_id,
+                 "Mise à jour du mot de passe personnel par l'utilisateur.", request.remote_addr),
+            )
+            connexion.commit()
+            flash("Votre mot de passe personnel a été enregistré avec succès.", "success")
+            return redirect(url_for("dashboard"))
+        except Error:
+            connexion.rollback()
+            app.logger.exception("Échec du changement de mot de passe utilisateur.")
+            flash("Impossible d'enregistrer le mot de passe. Veuillez réessayer.", "danger")
+            return render_template("auth/changer_mdp.html"), 500
+        finally:
+            connexion.close()
+
+    return render_template("auth/changer_mdp.html")
 
 
 @app.route("/module/<module>")
@@ -1114,7 +1231,10 @@ def changer_statut_ecole(ecole_id):
              f"Statut de l'école modifié en {statut}.", request.remote_addr),
         )
         connexion.commit()
-        flash("Le statut de l'école a été modifié.", "success")
+        if statut == "inactive":
+            flash("L'établissement scolaire a été désactivé. Tous les comptes utilisateurs associés ont immédiatement perdu l'accès côté serveur.", "warning")
+        else:
+            flash("L'établissement scolaire a été réactivé avec succès. Les comptes individuels actifs peuvent de nouveau se connecter.", "success")
     except Error:
         connexion.rollback()
         app.logger.exception("Changement de statut de l'école impossible.")
@@ -1346,6 +1466,317 @@ def formulaire_classe():
     return render_template("classes/formulaire.html", annees=annees)
 
 
+@app.route("/classes/<int:classe_id>/modifier", methods=["GET", "POST"])
+def modifier_classe(classe_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+    classe: dict[str, Any] | None = None
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT c.*, a.libelle AS annee_scolaire
+            FROM classes c
+            INNER JOIN annees_scolaires a ON a.id = c.annee_scolaire_id
+                WHERE c.id = %s AND c.ecole_id = %s
+            LIMIT 1
+            """,
+                (classe_id, g.current_user["ecole_id"]),
+        )
+        classe = cast(dict[str, Any] | None, curseur.fetchone())
+        if not classe:
+            abort(404)
+
+        niveaux_autorises = {
+            "1ere_primaire", "2eme_primaire", "3eme_primaire",
+            "4eme_primaire", "5eme_primaire", "6eme_primaire", "autre",
+        }
+        if request.method == "GET":
+            return render_template("classes/formulaire.html", classe=classe)
+
+        nom = (request.form.get("nom") or "").strip()
+        niveau = (request.form.get("niveau") or "").strip()
+        capacite = request.form.get("capacite", type=int)
+        if not nom or len(nom) > 100 or niveau not in niveaux_autorises or not capacite or capacite < 1:
+            flash("Saisissez un nom, un niveau et une capacité valides.", "danger")
+            return render_template("classes/formulaire.html", classe=classe), 400
+
+        curseur.execute(
+            "UPDATE classes SET nom = %s, niveau = %s, capacite = %s WHERE id = %s AND ecole_id = %s",
+            (nom, niveau, capacite, classe_id, g.current_user["ecole_id"]),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "modification", "classes", classe_id,
+             f"Modification de la division {nom} ({classe['annee_scolaire']}).", request.remote_addr),
+        )
+        connexion.commit()
+        flash("La division a été modifiée. Ses inscriptions et affectations sont conservées.", "success")
+        return redirect(url_for("page_module", module="classes"))
+    except Error as erreur:
+        connexion.rollback()
+        app.logger.exception("Modification de la division impossible.")
+        if getattr(erreur, "errno", None) == 1062:
+            flash("Ce nom de division existe déjà pour cette année scolaire.", "danger")
+        else:
+            flash("La division n'a pas pu être modifiée.", "danger")
+        return render_template("classes/formulaire.html", classe=classe), 400
+    finally:
+        connexion.close()
+
+
+@app.route("/classes/<int:classe_id>/statut", methods=["POST"])
+def changer_statut_classe(classe_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            "SELECT nom, statut FROM classes WHERE id = %s AND ecole_id = %s LIMIT 1 FOR UPDATE",
+            (classe_id, g.current_user["ecole_id"]),
+        )
+        classe = cast(dict[str, Any] | None, curseur.fetchone())
+        if not classe:
+            abort(404)
+        nouveau_statut = "inactive" if classe["statut"] == "active" else "active"
+        curseur.execute("UPDATE classes SET statut = %s WHERE id = %s", (nouveau_statut, classe_id))
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "modification", "classes", classe_id,
+             f"Division {classe['nom']} marquée {nouveau_statut}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash(f"La division a été {'désactivée' if nouveau_statut == 'inactive' else 'réactivée'}; son historique est conservé.", "success")
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Changement de statut de la division impossible.")
+        flash("Le statut de la division n'a pas été modifié.", "danger")
+    finally:
+        connexion.close()
+    return redirect(url_for("page_module", module="classes"))
+
+
+@app.route("/classes/<int:classe_id>/eleves")
+def eleves_classe(classe_id):
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT c.id, c.nom, c.niveau, c.capacite,
+                   a.id AS annee_scolaire_id, a.libelle AS annee_scolaire,
+                   CONCAT_WS(' ', ens.nom, ens.postnom, ens.prenom) AS enseignant_titulaire
+            FROM classes c
+            INNER JOIN annees_scolaires a ON a.id = c.annee_scolaire_id
+            LEFT JOIN affectations_enseignants af ON af.classe_id = c.id
+                 AND af.annee_scolaire_id = a.id AND af.statut = 'active' AND af.date_fin IS NULL
+            LEFT JOIN enseignants ens ON ens.id = af.enseignant_id
+            WHERE c.id = %s AND c.ecole_id = %s
+                            AND (
+                                        %s <> 'enseignant'
+                                        OR (
+                                                c.statut = 'active' AND a.statut = 'en_cours'
+                                                AND EXISTS (
+                                                        SELECT 1
+                                                        FROM affectations_enseignants af_guard
+                                                        INNER JOIN enseignants ens_guard ON ens_guard.id = af_guard.enseignant_id
+                                                        WHERE af_guard.classe_id = c.id
+                                                            AND af_guard.annee_scolaire_id = a.id
+                                                            AND af_guard.statut = 'active' AND af_guard.date_fin IS NULL
+                                                            AND ens_guard.utilisateur_id = %s
+                                                            AND ens_guard.ecole_id = c.ecole_id
+                                                )
+                                        )
+                            )
+            LIMIT 1
+            """,
+                        (classe_id, g.current_user["ecole_id"], g.current_user["role"], g.current_user["id"]),
+        )
+        classe = cast(dict[str, Any] | None, curseur.fetchone())
+        if not classe:
+            abort(404)
+
+        curseur.execute(
+            """
+            SELECT i.id AS inscription_id, i.date_inscription, i.statut AS statut_inscription,
+                   i.decision_fin_annee, i.date_decision,
+                   e.id AS eleve_id, e.matricule,
+                   CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS nom_complet,
+                   e.sexe, e.telephone_tuteur
+            FROM inscriptions i
+            INNER JOIN eleves e ON e.id = i.eleve_id
+            WHERE i.classe_id = %s AND e.ecole_id = %s AND i.statut = 'inscrit'
+            ORDER BY e.nom, e.postnom, e.prenom
+            """,
+            (classe_id, g.current_user["ecole_id"]),
+        )
+        eleves = cast(list[dict[str, Any]], curseur.fetchall())
+        return render_template("classes/eleves.html", classe=classe, eleves=eleves)
+    except HTTPException:
+        raise
+    except Exception:
+        app.logger.exception("Chargement des élèves de la classe impossible.")
+        abort(500)
+    finally:
+        connexion.close()
+
+
+@app.route("/inscriptions/<int:inscription_id>/retirer-classe", methods=["POST"])
+def retirer_eleve_classe(inscription_id):
+    motif = (request.form.get("motif_retrait") or "").strip()
+    date_retrait_brute = (request.form.get("date_retrait") or "").strip()
+    try:
+        date_retrait = date.fromisoformat(date_retrait_brute) if date_retrait_brute else date.today()
+    except ValueError:
+        date_retrait = date.today()
+
+    if not motif:
+        flash("Le motif du retrait est obligatoire.", "danger")
+        return redirect(request.referrer or url_for("page_module", module="classes")), 400
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT i.id, i.classe_id, i.eleve_id, CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS eleve_nom
+            FROM inscriptions i
+            INNER JOIN eleves e ON e.id = i.eleve_id
+            WHERE i.id = %s AND e.ecole_id = %s AND i.statut = 'inscrit'
+            LIMIT 1 FOR UPDATE
+            """,
+            (inscription_id, g.current_user["ecole_id"]),
+        )
+        inscription = curseur.fetchone()
+        if not inscription:
+            connexion.rollback()
+            flash("Inscription introuvable ou déjà clôturée.", "danger")
+            return redirect(request.referrer or url_for("page_module", module="classes")), 404
+
+        curseur.execute(
+            """
+            UPDATE inscriptions
+            SET statut = 'transfere', motif_retrait = %s, date_retrait = %s
+            WHERE id = %s
+            """,
+            (motif, date_retrait, inscription_id),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "retrait_classe", "inscriptions", inscription_id,
+             f"Retrait de l'élève {inscription['eleve_nom']} de sa classe (Motif : {motif}).", request.remote_addr),
+        )
+        connexion.commit()
+        flash("L'élève a été retiré de la classe. Son dossier et ses historiques restent intacts.", "success")
+        return redirect(url_for("eleves_classe", classe_id=inscription["classe_id"]))
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec du retrait de classe.")
+        flash("Le retrait de la classe a échoué.", "danger")
+        return redirect(request.referrer or url_for("page_module", module="classes")), 500
+    finally:
+        connexion.close()
+
+
+@app.route("/inscriptions/<int:inscription_id>/cloturer-ecole", methods=["POST"])
+def cloturer_inscription_ecole(inscription_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    motif = (request.form.get("motif_cloture") or "").strip()
+    date_cloture_brute = (request.form.get("date_cloture") or "").strip()
+    try:
+        date_cloture = date.fromisoformat(date_cloture_brute) if date_cloture_brute else date.today()
+    except ValueError:
+        date_cloture = date.today()
+
+    if not motif:
+        flash("Le motif de départ ou de clôture administrative est obligatoire.", "danger")
+        return redirect(request.referrer or url_for("page_module", module="classes")), 400
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT i.id, i.classe_id, i.eleve_id, CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS eleve_nom
+            FROM inscriptions i
+            INNER JOIN eleves e ON e.id = i.eleve_id
+            WHERE i.id = %s AND e.ecole_id = %s AND i.statut = 'inscrit'
+            LIMIT 1 FOR UPDATE
+            """,
+            (inscription_id, g.current_user["ecole_id"]),
+        )
+        inscription = curseur.fetchone()
+        if not inscription:
+            connexion.rollback()
+            flash("Inscription introuvable ou déjà clôturée.", "danger")
+            return redirect(request.referrer or url_for("page_module", module="classes")), 404
+
+        curseur.execute(
+            """
+            UPDATE inscriptions
+            SET statut = 'abandonne', motif_retrait = %s, date_retrait = %s
+            WHERE id = %s
+            """,
+            (motif, date_cloture, inscription_id),
+        )
+        curseur.execute(
+            "UPDATE eleves SET statut = 'inactif' WHERE id = %s",
+            (inscription["eleve_id"],),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "cloture_ecole", "inscriptions", inscription_id,
+             f"Clôture définitive de l'inscription pour départ de l'école de {inscription['eleve_nom']} (Motif : {motif}).", request.remote_addr),
+        )
+        connexion.commit()
+        flash("L'inscription scolaire a été clôturée. Le dossier élève et toutes les transactions financières sont conservés.", "success")
+        return redirect(url_for("eleves_classe", classe_id=inscription["classe_id"]))
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec de la clôture d'inscription scolaire.")
+        flash("La clôture de l'inscription a échoué.", "danger")
+        return redirect(request.referrer or url_for("page_module", module="classes")), 500
+    finally:
+        connexion.close()
+
+
 @app.route("/frais/nouveau", methods=["GET", "POST"])
 def formulaire_frais():
     annees = charger_annees_ecole(g.current_user["ecole_id"])
@@ -1421,6 +1852,214 @@ def formulaire_frais():
         return render_template("finances/formulaire_frais.html", **contexte), 400
     finally:
         connexion.close()
+
+
+@app.route("/frais/<int:frais_id>/modifier", methods=["GET", "POST"])
+def modifier_frais(frais_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT f.*, a.libelle AS annee_scolaire
+            FROM types_frais f
+            INNER JOIN annees_scolaires a ON a.id = f.annee_scolaire_id
+            WHERE f.id = %s AND f.ecole_id = %s
+            LIMIT 1
+            """,
+            (frais_id, g.current_user["ecole_id"]),
+        )
+        frais = cast(dict[str, Any] | None, curseur.fetchone())
+        if not frais:
+            abort(404)
+
+        # Vérifier si ce frais a déjà été utilisé dans des paiements (Section 11)
+        curseur.execute(
+            "SELECT COUNT(*) AS total FROM paiements_eleves WHERE type_frais_id = %s AND statut = 'valide'",
+            (frais_id,),
+        )
+        row_c = curseur.fetchone()
+        nb_paiements = int(row_c["total"]) if row_c else 0
+    except Exception:
+        app.logger.exception("Lecture du frais à modifier impossible.")
+        abort(500)
+    finally:
+        connexion.close()
+
+    if request.method == "GET":
+        return render_template("finances/modifier_frais.html", frais=frais, nb_paiements=nb_paiements)
+
+    nom = (request.form.get("nom") or "").strip()
+    description = (request.form.get("description") or "").strip() or None
+    date_limite_brute = (request.form.get("date_limite") or "").strip()
+    try:
+        date_limite = date.fromisoformat(date_limite_brute) if date_limite_brute else None
+    except ValueError:
+        date_limite = False
+
+    if not nom or len(nom) > 100 or date_limite is False:
+        flash("Saisissez un libellé valide.", "danger")
+        return render_template("finances/modifier_frais.html", frais=frais, nb_paiements=nb_paiements), 400
+
+    nouveau_montant = None
+    if nb_paiements == 0:
+        try:
+            nouveau_montant = Decimal((request.form.get("montant") or "").strip().replace(",", "."))
+        except InvalidOperation:
+            nouveau_montant = Decimal("-1")
+        if not nouveau_montant.is_finite() or nouveau_montant < 0:
+            flash("Saisissez un montant valide et positif ou nul.", "danger")
+            return render_template("finances/modifier_frais.html", frais=frais, nb_paiements=nb_paiements), 400
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor()
+        if nb_paiements == 0 and nouveau_montant is not None:
+            curseur.execute(
+                """
+                UPDATE types_frais
+                SET nom = %s, description = %s, montant = %s, obligatoire = %s, date_limite = %s
+                WHERE id = %s AND ecole_id = %s
+                """,
+                (nom, description, nouveau_montant.quantize(Decimal("0.01")),
+                 1 if request.form.get("obligatoire") == "on" else 0, date_limite,
+                 frais_id, g.current_user["ecole_id"]),
+            )
+        else:
+            curseur.execute(
+                """
+                UPDATE types_frais
+                SET nom = %s, description = %s, obligatoire = %s, date_limite = %s
+                WHERE id = %s AND ecole_id = %s
+                """,
+                (nom, description, 1 if request.form.get("obligatoire") == "on" else 0,
+                 date_limite, frais_id, g.current_user["ecole_id"]),
+            )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "modification", "types_frais", frais_id,
+             f"Mise à jour du type de frais {nom}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash("Le type de frais a été mis à jour avec succès.", "success")
+        return redirect(url_for("page_module", module="frais"))
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Modification du type de frais impossible.")
+        flash("La modification du frais a échoué.", "danger")
+        return render_template("finances/modifier_frais.html", frais=frais, nb_paiements=nb_paiements), 400
+    finally:
+        connexion.close()
+
+
+@app.route("/frais/<int:frais_id>/statut", methods=["POST"])
+def changer_statut_frais(frais_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            "SELECT id, nom, statut FROM types_frais WHERE id = %s AND ecole_id = %s LIMIT 1 FOR UPDATE",
+            (frais_id, g.current_user["ecole_id"]),
+        )
+        frais = curseur.fetchone()
+        if not frais:
+            connexion.rollback()
+            abort(404)
+
+        nouveau_statut = "inactif" if frais["statut"] == "actif" else "actif"
+        curseur.execute("UPDATE types_frais SET statut = %s WHERE id = %s", (nouveau_statut, frais_id))
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "modification", "types_frais", frais_id,
+             f"Statut du frais {frais['nom']} passé à {nouveau_statut}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash(f"Le frais '{frais['nom']}' est désormais {nouveau_statut}.", "success")
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Changement de statut du frais impossible.")
+        flash("Le changement de statut du frais a échoué.", "danger")
+    finally:
+        connexion.close()
+    return redirect(url_for("page_module", module="frais"))
+
+
+@app.route("/frais/<int:frais_id>/supprimer", methods=["POST"])
+def supprimer_frais(frais_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            "SELECT id, nom FROM types_frais WHERE id = %s AND ecole_id = %s LIMIT 1 FOR UPDATE",
+            (frais_id, g.current_user["ecole_id"]),
+        )
+        frais = curseur.fetchone()
+        if not frais:
+            connexion.rollback()
+            abort(404)
+
+        # Règle stricte Section 11 : Supprimer UNIQUEMENT un frais qui n'a JAMAIS été utilisé
+        curseur.execute(
+            "SELECT COUNT(*) AS total FROM paiements_eleves WHERE type_frais_id = %s",
+            (frais_id,),
+        )
+        compte = curseur.fetchone()
+        if compte and int(compte["total"]) > 0:
+            connexion.rollback()
+            flash("Ce frais a déjà été utilisé dans des paiements et ne peut pas être supprimé. Vous pouvez le désactiver pour bloquer les futurs paiements.", "danger")
+            return redirect(url_for("page_module", module="frais")), 409
+
+        curseur.execute("DELETE FROM types_frais WHERE id = %s", (frais_id,))
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "suppression", "types_frais", frais_id,
+             f"Suppression du type de frais inutilisé {frais['nom']}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash("Le type de frais inutilisé a été supprimé.", "success")
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Suppression du frais impossible.")
+        flash("La suppression du frais a échoué.", "danger")
+    finally:
+        connexion.close()
+    return redirect(url_for("page_module", module="frais"))
 
 
 @app.route("/regles-financieres/nouveau", methods=["GET", "POST"])
@@ -1537,7 +2176,7 @@ def formulaire_presence():
             )
             enseignants = cast(list[dict[str, Any]], curseur.fetchall())
         except Exception:
-            app.logger.exception("Chargement des enseignants pour la présence impossible.")
+            app.logger.exception("Cghargement des enseignants pour la présence impossible.")
         finally:
             connexion.close()
 
@@ -1561,7 +2200,7 @@ def formulaire_presence():
     if not enseignant_id or not annee_id or jour is None or statut not in statuts:
         flash("Sélectionnez un enseignant, une année en cours, une date et un statut valides.", "danger")
         return render_template("presences/formulaire.html", **contexte), 400
-    if (heure_arrivee and len(heure_arrivee) != 8) or (heure_depart and len(heure_depart) != 8):
+    if (heure_arrivee and len(heure_arrivee) != 5) or (heure_depart and len(heure_depart) != 5):
         flash("Les heures doivent être saisies au format HH:MM.", "danger")
         return render_template("presences/formulaire.html", **contexte), 400
 
@@ -1768,7 +2407,9 @@ def espace_enseignant():
                 """
                 SELECT DISTINCT el.id, el.matricule,
                        CONCAT_WS(' ', el.nom, el.postnom, el.prenom) AS nom_complet,
-                       el.sexe, c.nom AS classe, a.libelle AS annee_scolaire
+                       el.sexe, c.id AS classe_id, c.nom AS classe, c.niveau,
+                       a.id AS annee_scolaire_id, a.libelle AS annee_scolaire,
+                       i.id AS inscription_id, i.decision_fin_annee, i.date_decision
                 FROM affectations_enseignants af
                 INNER JOIN classes c ON c.id = af.classe_id
                 INNER JOIN annees_scolaires a ON a.id = af.annee_scolaire_id
@@ -1777,7 +2418,7 @@ def espace_enseignant():
                 INNER JOIN eleves el ON el.id = i.eleve_id AND el.ecole_id = a.ecole_id
                 WHERE af.enseignant_id = %s AND a.ecole_id = %s
                   AND af.statut = 'active' AND af.date_fin IS NULL
-                  AND a.statut = 'en_cours' AND el.statut = 'actif'
+                                    AND a.statut = 'en_cours' AND c.statut = 'active' AND el.statut = 'actif'
                 ORDER BY c.nom, el.nom, el.postnom, el.prenom
                 LIMIT 300
                 """,
@@ -1827,6 +2468,85 @@ def espace_enseignant():
         eleves_classe=eleves_classe, presences=presences,
         remunerations=remunerations, paiements=paiements,
     )
+
+
+@app.route("/espace-enseignant/decision-fin-annee", methods=["POST"])
+def enregistrer_decision_fin_annee():
+    if g.current_user["role"] != "enseignant":
+        abort(403)
+
+    inscription_id = request.form.get("inscription_id", type=int)
+    decision = (request.form.get("decision") or "").strip()
+    observations = (request.form.get("observations") or "").strip() or None
+
+    decisions_valides = {"admis", "redouble", "a_traiter"}
+    if not inscription_id or decision not in decisions_valides:
+        flash("Sélectionnez une décision valide (Passe, Redouble, ou Situation à traiter).", "danger")
+        return redirect(url_for("espace_enseignant")), 400
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT i.id, i.eleve_id, c.id AS classe_id, c.niveau,
+                   CONCAT_WS(' ', el.nom, el.postnom, el.prenom) AS eleve_nom
+            FROM inscriptions i
+            INNER JOIN classes c ON c.id = i.classe_id
+            INNER JOIN annees_scolaires a ON a.id = i.annee_scolaire_id
+            INNER JOIN affectations_enseignants af ON af.classe_id = c.id
+                 AND af.annee_scolaire_id = a.id AND af.statut = 'active' AND af.date_fin IS NULL
+            INNER JOIN enseignants ens ON ens.id = af.enseignant_id
+            INNER JOIN eleves el ON el.id = i.eleve_id
+            WHERE i.id = %s AND ens.utilisateur_id = %s AND ens.ecole_id = %s
+              AND a.statut = 'en_cours' AND i.statut = 'inscrit'
+            LIMIT 1 FOR UPDATE
+            """,
+            (inscription_id, g.current_user["id"], g.current_user["ecole_id"]),
+        )
+        verif = curseur.fetchone()
+        if not verif:
+            connexion.rollback()
+            flash("Vous n'êtes pas autorisé à enregistrer la décision pour cet élève (classe ou affectation non reconnue).", "danger")
+            return redirect(url_for("espace_enseignant")), 403
+
+        obs_complete = observations
+        if verif["niveau"] == "6eme_primaire" and decision == "admis":
+            mention_6eme = "Cycle primaire achevé avec succès (Examen de fin d'études primaires)."
+            obs_complete = f"{observations} - {mention_6eme}" if observations else mention_6eme
+
+        curseur.execute(
+            """
+            UPDATE inscriptions
+            SET decision_fin_annee = %s, date_decision = CURRENT_DATE(),
+                decision_par = %s, observations = COALESCE(%s, observations)
+            WHERE id = %s
+            """,
+            (decision, g.current_user["id"], obs_complete, inscription_id),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "decision_fin_annee", "inscriptions", inscription_id,
+             f"Enregistrement de la décision '{decision}' pour l'élève {verif['eleve_nom']}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash(f"La décision de fin d'année pour {verif['eleve_nom']} a été enregistrée avec succès.", "success")
+        return redirect(url_for("espace_enseignant"))
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec de l'enregistrement de la décision de fin d'année.")
+        flash("La décision n'a pas pu être enregistrée.", "danger")
+        return redirect(url_for("espace_enseignant")), 500
+    finally:
+        connexion.close()
 
 
 @app.route("/mes-notifications")
@@ -2512,7 +3232,7 @@ def recu_paiement(numero_recu):
             INNER JOIN types_frais f ON f.id = p.type_frais_id
             INNER JOIN ecoles ec ON ec.id = el.ecole_id
             LEFT JOIN utilisateurs u ON u.id = p.encaisse_par
-            WHERE p.numero_recu = %s AND ec.id = %s AND p.statut = 'valide'
+            WHERE p.numero_recu = %s AND ec.id = %s
             LIMIT 1
             """,
             (numero_recu, g.current_user["ecole_id"]),
@@ -2526,6 +3246,75 @@ def recu_paiement(numero_recu):
     if paiement is None:
         abort(404)
     return render_template("finances/recu.html", paiement=paiement, ecole={"nom": paiement["ecole"]})
+
+
+@app.route("/paiements-eleves/<int:paiement_id>/annuler", methods=["POST"])
+def annuler_paiement_eleve(paiement_id):
+    if g.current_user["role"] not in {"administrateur", "caissier"}:
+        abort(403)
+
+    motif = (request.form.get("motif_annulation") or "").strip()
+    if not motif:
+        flash("Le motif d'annulation est obligatoire.", "danger")
+        return redirect(request.referrer or url_for("page_module", module="paiements_eleves")), 400
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT p.id, p.numero_recu, p.montant_paye, p.statut,
+                   ec.id AS ecole_id
+            FROM paiements_eleves p
+            INNER JOIN inscriptions i ON i.id = p.inscription_id
+            INNER JOIN eleves el ON el.id = i.eleve_id
+            INNER JOIN ecoles ec ON ec.id = el.ecole_id
+            WHERE p.id = %s AND ec.id = %s
+            LIMIT 1 FOR UPDATE
+            """,
+            (paiement_id, g.current_user["ecole_id"]),
+        )
+        paiement = curseur.fetchone()
+        if not paiement:
+            connexion.rollback()
+            abort(404)
+
+        if paiement["statut"] == "annule":
+            connexion.rollback()
+            flash("Ce paiement a déjà été annulé précédemment.", "warning")
+            return redirect(request.referrer or url_for("page_module", module="paiements_eleves"))
+
+        curseur.execute(
+            """
+            UPDATE paiements_eleves
+            SET statut = 'annule', motif_annulation = %s, annule_par = %s, date_annulation = NOW()
+            WHERE id = %s
+            """,
+            (motif, g.current_user["id"], paiement_id),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "annulation_paiement", "paiements_eleves", paiement_id,
+             f"Annulation du paiement {paiement['numero_recu']} ({paiement['montant_paye']} USD) - Motif : {motif}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash(f"Le paiement {paiement['numero_recu']} a été annulé avec succès. L'historique et le reçu restent conservés avec mention ANNULÉ.", "success")
+        return redirect(url_for("page_module", module="paiements_eleves"))
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec de l'annulation du paiement.")
+        flash("L'annulation du paiement a échoué.", "danger")
+        return redirect(request.referrer or url_for("page_module", module="paiements_eleves")), 500
+    finally:
+        connexion.close()
 
 
 @app.route("/enseignants/nouveau", methods=["GET", "POST"])
@@ -2747,6 +3536,117 @@ def detail_enseignant(enseignant_id):
     return render_template("enseignants/detail.html", enseignant=enseignant, affectations=affectations, message="")
 
 
+@app.route("/enseignants/affectations/<int:affectation_id>/cloturer", methods=["POST"])
+def cloturer_affectation_enseignant(affectation_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT af.id, af.enseignant_id, c.nom AS classe_nom,
+                   CONCAT_WS(' ', ens.nom, ens.postnom, ens.prenom) AS enseignant_nom
+            FROM affectations_enseignants af
+            INNER JOIN enseignants ens ON ens.id = af.enseignant_id
+            INNER JOIN classes c ON c.id = af.classe_id
+            WHERE af.id = %s AND ens.ecole_id = %s AND af.statut = 'active'
+            LIMIT 1 FOR UPDATE
+            """,
+            (affectation_id, g.current_user["ecole_id"]),
+        )
+        affectation = curseur.fetchone()
+        if not affectation:
+            connexion.rollback()
+            flash("Affectation introuvable ou déjà clôturée.", "danger")
+            return redirect(request.referrer or url_for("page_module", module="enseignants")), 404
+
+        curseur.execute(
+            "UPDATE affectations_enseignants SET statut = 'terminee', date_fin = CURRENT_DATE() WHERE id = %s",
+            (affectation_id,),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "cloture_affectation", "affectations_enseignants", affectation_id,
+             f"Clôture de l'affectation de {affectation['enseignant_nom']} dans la classe {affectation['classe_nom']}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash("L'affectation a été clôturée avec succès. L'historique des activités passées est conservé.", "success")
+        return redirect(url_for("detail_enseignant", enseignant_id=affectation["enseignant_id"]))
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec de la clôture de l'affectation enseignant.")
+        flash("La clôture de l'affectation a échoué.", "danger")
+        return redirect(request.referrer or url_for("page_module", module="enseignants")), 500
+    finally:
+        connexion.close()
+
+
+@app.route("/enseignants/<int:enseignant_id>/statut", methods=["POST"])
+def changer_statut_enseignant(enseignant_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    nouveau_statut = (request.form.get("statut") or "").strip()
+    if nouveau_statut not in {"actif", "inactif", "suspendu"}:
+        abort(400)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            "SELECT id, utilisateur_id, CONCAT_WS(' ', nom, postnom, prenom) AS nom_complet FROM enseignants WHERE id = %s AND ecole_id = %s LIMIT 1 FOR UPDATE",
+            (enseignant_id, g.current_user["ecole_id"]),
+        )
+        enseignant = curseur.fetchone()
+        if not enseignant:
+            connexion.rollback()
+            abort(404)
+
+        curseur.execute("UPDATE enseignants SET statut = %s WHERE id = %s", (nouveau_statut, enseignant_id))
+        
+        # En cas de départ (inactif/suspendu), désactiver également le compte utilisateur rattaché (Section 6)
+        if enseignant["utilisateur_id"]:
+            statut_compte = "actif" if nouveau_statut == "actif" else "inactif"
+            curseur.execute(
+                "UPDATE utilisateurs SET statut = %s WHERE id = %s",
+                (statut_compte, enseignant["utilisateur_id"]),
+            )
+
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "modification_statut_enseignant", "enseignants", enseignant_id,
+             f"Mise à jour du statut enseignant de {enseignant['nom_complet']} en {nouveau_statut}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash(f"Le statut du dossier enseignant ({enseignant['nom_complet']}) est désormais '{nouveau_statut}'.", "success")
+        return redirect(url_for("detail_enseignant", enseignant_id=enseignant_id))
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec du changement de statut enseignant.")
+        flash("La mise à jour du statut enseignant a échoué.", "danger")
+        return redirect(url_for("detail_enseignant", enseignant_id=enseignant_id)), 500
+    finally:
+        connexion.close()
+
+
 @app.route("/utilisateurs/nouveau", methods=["GET", "POST"])
 def formulaire_utilisateur():
     enseignants_disponibles = []
@@ -2859,6 +3759,196 @@ def formulaire_utilisateur():
             connexion.close()
 
     return render_template("utilisateurs/formulaire.html", **contexte)
+
+
+@app.route("/utilisateurs/<int:utilisateur_id>/modifier", methods=["GET", "POST"])
+def modifier_utilisateur(utilisateur_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            "SELECT * FROM utilisateurs WHERE id = %s AND ecole_id = %s LIMIT 1",
+            (utilisateur_id, g.current_user["ecole_id"]),
+        )
+        utilisateur = cast(dict[str, Any] | None, curseur.fetchone())
+    except Exception:
+        app.logger.exception("Lecture de l'utilisateur à modifier impossible.")
+        abort(500)
+    finally:
+        connexion.close()
+
+    if not utilisateur:
+        abort(404)
+
+    if request.method == "GET":
+        return render_template("utilisateurs/modifier.html", utilisateur=utilisateur)
+
+    nom = (request.form.get("nom") or "").strip()
+    postnom = (request.form.get("postnom") or "").strip() or None
+    prenom = (request.form.get("prenom") or "").strip() or None
+    nom_utilisateur = (request.form.get("nom_utilisateur") or "").strip()
+    email = (request.form.get("email") or "").strip() or None
+    telephone = (request.form.get("telephone") or "").strip() or None
+    role = (request.form.get("role") or "").strip()
+
+    if not nom or not nom_utilisateur or role not in {"administrateur", "caissier", "enseignant"}:
+        flash("Complétez le nom, le nom d'utilisateur et un rôle valide.", "danger")
+        return render_template("utilisateurs/modifier.html", utilisateur=utilisateur), 400
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor()
+        curseur.execute(
+            """
+            UPDATE utilisateurs
+            SET nom = %s, postnom = %s, prenom = %s, nom_utilisateur = %s,
+                email = %s, telephone = %s, role = %s
+            WHERE id = %s AND ecole_id = %s
+            """,
+            (nom, postnom, prenom, nom_utilisateur, email, telephone, role, utilisateur_id, g.current_user["ecole_id"]),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "modification_utilisateur", "utilisateurs", utilisateur_id,
+             f"Mise à jour des informations du compte {nom_utilisateur} (rôle : {role}).", request.remote_addr),
+        )
+        connexion.commit()
+        flash(f"Le compte utilisateur '{nom_utilisateur}' a été modifié avec succès.", "success")
+        return redirect(url_for("page_module", module="utilisateurs"))
+    except Error as erreur:
+        connexion.rollback()
+        app.logger.exception("Échec de la modification du compte utilisateur.")
+        if getattr(erreur, "errno", None) == 1062:
+            flash("Ce nom d'utilisateur ou cette adresse e-mail est déjà utilisé.", "danger")
+        else:
+            flash("La modification du compte a échoué.", "danger")
+        return render_template("utilisateurs/modifier.html", utilisateur=utilisateur), 400
+    finally:
+        connexion.close()
+
+
+@app.route("/utilisateurs/<int:utilisateur_id>/statut", methods=["POST"])
+def changer_statut_utilisateur(utilisateur_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    if utilisateur_id == g.current_user["id"]:
+        flash("Vous ne pouvez pas désactiver ou bloquer votre propre compte connecté.", "danger")
+        return redirect(url_for("page_module", module="utilisateurs")), 400
+
+    nouveau_statut = (request.form.get("statut") or "").strip()
+    if nouveau_statut not in {"actif", "inactif", "bloque"}:
+        abort(400)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            "SELECT id, nom_utilisateur, statut FROM utilisateurs WHERE id = %s AND ecole_id = %s LIMIT 1 FOR UPDATE",
+            (utilisateur_id, g.current_user["ecole_id"]),
+        )
+        utilisateur = curseur.fetchone()
+        if not utilisateur:
+            connexion.rollback()
+            abort(404)
+
+        curseur.execute(
+            "UPDATE utilisateurs SET statut = %s WHERE id = %s",
+            (nouveau_statut, utilisateur_id),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "changement_statut_utilisateur", "utilisateurs", utilisateur_id,
+             f"Changement de statut du compte {utilisateur['nom_utilisateur']} vers '{nouveau_statut}'.", request.remote_addr),
+        )
+        connexion.commit()
+        flash(f"Le statut du compte '{utilisateur['nom_utilisateur']}' est désormais '{nouveau_statut}'.", "success")
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec du changement de statut utilisateur.")
+        flash("Le changement de statut a échoué.", "danger")
+    finally:
+        connexion.close()
+    return redirect(url_for("page_module", module="utilisateurs"))
+
+
+@app.route("/utilisateurs/<int:utilisateur_id>/reinitialiser-mot-de-passe", methods=["POST"])
+def reinitialiser_mot_de_passe_utilisateur(utilisateur_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    generer_auto = request.form.get("generer_auto") == "1"
+    forcer_changement = request.form.get("forcer_changement") == "1"
+    min_len = app.config["PASSWORD_MIN_LENGTH"]
+
+    if generer_auto:
+        nouveau_mdp = f"Ref-{secrets.token_hex(4).upper()}!{secrets.randbelow(90) + 10}"
+    else:
+        nouveau_mdp = (request.form.get("nouveau_mot_de_passe") or "").strip()
+        if len(nouveau_mdp) < min_len:
+            flash(f"Le mot de passe doit comporter au moins {min_len} caractères.", "danger")
+            return redirect(url_for("page_module", module="utilisateurs")), 400
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            "SELECT id, nom_utilisateur FROM utilisateurs WHERE id = %s AND ecole_id = %s LIMIT 1 FOR UPDATE",
+            (utilisateur_id, g.current_user["ecole_id"]),
+        )
+        utilisateur = curseur.fetchone()
+        if not utilisateur:
+            connexion.rollback()
+            abort(404)
+
+        curseur.execute(
+            "UPDATE utilisateurs SET mot_de_passe = %s, doit_changer_mdp = %s WHERE id = %s",
+            (generate_password_hash(nouveau_mdp), 1 if forcer_changement else 0, utilisateur_id),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "reinitialisation_mdp", "utilisateurs", utilisateur_id,
+             f"Réinitialisation du mot de passe du compte {utilisateur['nom_utilisateur']} par l'administrateur.", request.remote_addr),
+        )
+        connexion.commit()
+        flash(f"Mot de passe réinitialisé pour '{utilisateur['nom_utilisateur']}'. Nouveau mot de passe provisoire : {nouveau_mdp} (Notez-le immédiatement, il ne sera plus jamais réaffiché !)", "info")
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec de la réinitialisation du mot de passe utilisateur.")
+        flash("La réinitialisation du mot de passe a échoué.", "danger")
+    finally:
+        connexion.close()
+    return redirect(url_for("page_module", module="utilisateurs"))
 
 
 @app.cli.command("bootstrap-admin")

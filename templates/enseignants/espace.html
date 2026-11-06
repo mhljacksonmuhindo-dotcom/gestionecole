@@ -1,50 +1,41 @@
-{% extends "base.html" %} {% block title %}Mon espace enseignant | Gestion
-scolaire{% endblock %} {% block page_heading %}Mon espace enseignant{% endblock
-%} {% block content %}
+{% extends "base.html" %}
+{% block title %}Mon espace enseignant | GESTION ÉCOLE{% endblock %}
+{% block page_heading %}Mon espace enseignant{% endblock %}
+
+{% block content %}
 <section class="page-header">
   <div>
-    <p class="eyebrow">ESPACE PERSONNEL</p>
+    <p class="eyebrow">ESPACE PERSONNEL ENSEIGNANT</p>
     <h1>Bonjour {{ current_user.prenom or current_user.nom }}</h1>
-    <p class="muted">Consultez votre profil et vos informations scolaires.</p>
+    <p class="muted">Consultez vos affectations, vos présences et enregistrez les décisions de fin d'année pour vos élèves.</p>
   </div>
 </section>
+
 {% if enseignant %}
 <section class="panel">
-  <div class="panel-heading"><h2>Mon profil</h2></div>
+  <div class="panel-heading"><h2>Mon profil enseignant</h2></div>
   <div class="information-list">
     <div><span>Matricule</span><strong>{{ enseignant.matricule }}</strong></div>
-    <div>
-      <span>Nom</span
-      ><strong
-        >{{ enseignant.nom }} {{ enseignant.postnom or '' }} {{
-        enseignant.prenom or '' }}</strong
-      >
-    </div>
-    <div>
-      <span>Téléphone</span><strong>{{ enseignant.telephone or '—' }}</strong>
-    </div>
-    <div>
-      <span>Spécialité</span><strong>{{ enseignant.specialite or '—' }}</strong>
-    </div>
-    <div>
-      <span>Engagement</span
-      ><strong>{{ enseignant.date_engagement or '—' }}</strong>
-    </div>
-    <div><span>Statut</span><strong>{{ enseignant.statut }}</strong></div>
+    <div><span>Nom complet</span><strong>{{ enseignant.nom }} {{ enseignant.postnom or '' }} {{ enseignant.prenom or '' }}</strong></div>
+    <div><span>Téléphone</span><strong>{{ enseignant.telephone or '—' }}</strong></div>
+    <div><span>Spécialité</span><strong>{{ enseignant.specialite or '—' }}</strong></div>
+    <div><span>Date d'engagement</span><strong>{{ enseignant.date_engagement or '—' }}</strong></div>
+    <div><span>Statut</span><strong><span class="badge badge-success">{{ enseignant.statut }}</span></strong></div>
   </div>
 </section>
+
 <section class="panel">
-  <div class="panel-heading"><h2>Mes affectations</h2></div>
+  <div class="panel-heading"><h2>Mes affectations de classes</h2></div>
   <div class="table-wrapper">
     <table>
       <thead>
         <tr>
-          <th>Année</th>
+          <th>Année scolaire</th>
           <th>Classe</th>
           <th>Niveau</th>
           <th>Fonction</th>
-          <th>Début</th>
-          <th>Fin</th>
+          <th>Date début</th>
+          <th>Date fin</th>
           <th>État</th>
         </tr>
       </thead>
@@ -52,24 +43,150 @@ scolaire{% endblock %} {% block page_heading %}Mon espace enseignant{% endblock
         {% for item in affectations %}
         <tr>
           <td>{{ item.annee_scolaire }}</td>
-          <td>{{ item.classe }}</td>
-          <td>{{ item.niveau }}</td>
+          <td><strong>{{ item.classe }}</strong></td>
+          <td>
+            {% if item.niveau == '1ere_primaire' %}1ère primaire
+            {% elif item.niveau == '2eme_primaire' %}2ème primaire
+            {% elif item.niveau == '3eme_primaire' %}3ème primaire
+            {% elif item.niveau == '4eme_primaire' %}4ème primaire
+            {% elif item.niveau == '5eme_primaire' %}5ème primaire
+            {% elif item.niveau == '6eme_primaire' %}6ème primaire
+            {% else %}{{ item.niveau or '—' }}{% endif %}
+          </td>
           <td>{{ item.fonction }}</td>
           <td>{{ item.date_debut }}</td>
-          <td>{{ item.date_fin or '—' }}</td>
-          <td>{{ item.statut }}</td>
+          <td>{{ item.date_fin or 'En cours' }}</td>
+          <td>
+            {% if item.statut == 'active' %}
+              <span class="badge badge-success">Active</span>
+            {% else %}
+              <span class="badge badge-secondary">{{ item.statut }}</span>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="7" class="empty-state">Aucune affectation.</td>
+          <td colspan="7" class="empty-state">Aucune affectation enregistrée.</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
+
+<!-- Section 10 : Décision de fin d'année et passage de classe -->
 <section class="panel">
-  <div class="panel-heading"><h2>Mes présences</h2></div>
+  <div class="panel-heading">
+    <h2>Élèves de mes classes actuelles & Décisions de fin d'année</h2>
+  </div>
+  <p class="notice" style="margin: 0 1rem 1rem 1rem;">
+    <strong>Instruction officielle :</strong> Enregistrez la décision de fin d'année pour chaque élève de votre classe.
+    Pour les élèves de <strong>6ème primaire</strong>, la décision « Passe » valide la fin du cycle primaire (aucun passage en 7ème primaire).
+  </p>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Matricule</th>
+          <th>Nom complet</th>
+          <th>Sexe</th>
+          <th>Classe</th>
+          <th>Niveau</th>
+          <th>Décision actuelle</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in eleves_classe %}
+        <tr>
+          <td><code>{{ item.matricule }}</code></td>
+          <td><strong>{{ item.nom_complet }}</strong></td>
+          <td>{{ item.sexe }}</td>
+          <td>{{ item.classe }}</td>
+          <td>
+            {% if item.niveau == '6eme_primaire' %}
+              <span class="badge badge-purple">6ème primaire (Fin cycle)</span>
+            {% else %}
+              {{ item.niveau | replace('_', ' ') }}
+            {% endif %}
+          </td>
+          <td>
+            {% if item.decision_fin_annee == 'admis' %}
+              {% if item.niveau == '6eme_primaire' %}
+                <span class="badge badge-success">Cycle primaire terminé</span>
+              {% else %}
+                <span class="badge badge-success">Passe en classe supérieure</span>
+              {% endif %}
+            {% elif item.decision_fin_annee == 'redouble' %}
+              <span class="badge badge-warning">Redouble la classe</span>
+            {% elif item.decision_fin_annee == 'a_traiter' %}
+              <span class="badge badge-danger">Situation à traiter</span>
+            {% else %}
+              <span class="muted">En attente de décision</span>
+            {% endif %}
+          </td>
+          <td>
+            <button type="button" class="btn btn-sm btn-primary" onclick="ouvrirModalDecision('{{ item.inscription_id }}', '{{ item.nom_complet | escape }}', '{{ item.classe | escape }}', '{{ item.niveau | escape }}', '{{ item.decision_fin_annee or '' }}')">
+              {% if item.decision_fin_annee %}Modifier décision{% else %}Enregistrer décision{% endif %}
+            </button>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">
+            Aucun élève n'est actuellement inscrit dans votre classe titulaire.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Modal Décision Fin d'Année (Section 10) -->
+<div id="modalDecisionFinAnnee" class="modal-overlay" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Décision de fin d'année</h3>
+      <button type="button" class="modal-close" onclick="fermerModalDecision()">&times;</button>
+    </div>
+    <form method="POST" action="{{ url_for('enregistrer_decision_fin_annee') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" id="decision_inscription_id" name="inscription_id" value="">
+      
+      <div class="modal-body">
+        <p>Élève : <strong id="decisionNomEleve"></strong></p>
+        <p>Classe : <span id="decisionClasse"></span> (<span id="decisionNiveau"></span>)</p>
+
+        <div class="form-group">
+          <label for="decision_choisie">Décision retenue *</label>
+          <select id="decision_choisie" name="decision" class="form-control" required>
+            <option value="">Sélectionnez la décision</option>
+            <option value="admis" id="opt_admis">Passe dans la classe supérieure</option>
+            <option value="redouble">Redouble la classe</option>
+            <option value="a_traiter">Situation à traiter conformément au règlement</option>
+          </select>
+        </div>
+
+        <p class="muted" id="info_6eme" style="display:none; color: #7c3aed;">
+          ℹ️ Pour un élève de 6ème primaire, « Admis » atteste de la réussite du cycle primaire et prépare son départ diplômé de l'école primaire.
+        </p>
+
+        <div class="form-group">
+          <label for="observations_decision">Observations pédagogiques (facultatif)</label>
+          <textarea id="observations_decision" name="observations" class="form-control" rows="2" placeholder="Remarques éventuelles..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="fermerModalDecision()">Annuler</button>
+        <button type="submit" class="btn btn-primary">Enregistrer la décision</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-heading"><h2>Mes présences récentes</h2></div>
   <div class="table-wrapper">
     <table>
       <thead>
@@ -85,7 +202,17 @@ scolaire{% endblock %} {% block page_heading %}Mon espace enseignant{% endblock
         {% for item in presences %}
         <tr>
           <td>{{ item.date_presence }}</td>
-          <td>{{ item.statut }}</td>
+          <td>
+            {% if item.statut == 'present' %}
+              <span class="badge badge-success">Présent</span>
+            {% elif item.statut == 'absent' %}
+              <span class="badge badge-danger">Absent</span>
+            {% elif item.statut == 'retard' %}
+              <span class="badge badge-warning">En retard</span>
+            {% else %}
+              <span class="badge badge-secondary">{{ item.statut }}</span>
+            {% endif %}
+          </td>
           <td>{{ item.heure_arrivee or '—' }}</td>
           <td>{{ item.heure_depart or '—' }}</td>
           <td>{{ item.justification or '—' }}</td>
@@ -99,39 +226,7 @@ scolaire{% endblock %} {% block page_heading %}Mon espace enseignant{% endblock
     </table>
   </div>
 </section>
-<section class="panel">
-  <div class="panel-heading"><h2>Élèves de mes classes actuelles</h2></div>
-  <div class="table-wrapper">
-    <table>
-      <thead>
-        <tr>
-          <th>Matricule</th>
-          <th>Nom complet</th>
-          <th>Sexe</th>
-          <th>Classe</th>
-          <th>Année</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in eleves_classe %}
-        <tr>
-          <td>{{ item.matricule }}</td>
-          <td>{{ item.nom_complet }}</td>
-          <td>{{ item.sexe }}</td>
-          <td>{{ item.classe }}</td>
-          <td>{{ item.annee_scolaire }}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="5" class="empty-state">
-            Aucun élève inscrit dans vos classes actuelles.
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
+
 <section class="panel">
   <div class="panel-heading"><h2>Mes rémunérations préparées</h2></div>
   <div class="table-wrapper">
@@ -149,13 +244,10 @@ scolaire{% endblock %} {% block page_heading %}Mon espace enseignant{% endblock
         {% for item in remunerations %}
         <tr>
           <td>{{ '%02d'|format(item.mois) }}/{{ item.annee }}</td>
-          <td>
-            {{ item.total_jours_presents or 0 }}/{{ item.total_jours_prevus or 0
-            }}
-          </td>
-          <td>{{ item.montant_calcule or 0 }}</td>
-          <td>{{ item.montant_valide or 0 }}</td>
-          <td>{{ item.statut }}</td>
+          <td>{{ item.total_jours_presents or 0 }}/{{ item.total_jours_prevus or 0 }}</td>
+          <td>{{ item.montant_calcule or 0 }} USD</td>
+          <td>{{ item.montant_valide or 0 }} USD</td>
+          <td><span class="badge badge-secondary">{{ item.statut }}</span></td>
         </tr>
         {% else %}
         <tr>
@@ -166,13 +258,14 @@ scolaire{% endblock %} {% block page_heading %}Mon espace enseignant{% endblock
     </table>
   </div>
 </section>
+
 <section class="panel">
-  <div class="panel-heading"><h2>Mes paiements réels</h2></div>
+  <div class="panel-heading"><h2>Mes paiements effectifs perçus</h2></div>
   <div class="table-wrapper">
     <table>
       <thead>
         <tr>
-          <th>Reçu</th>
+          <th>N° Reçu</th>
           <th>Période</th>
           <th>Montant payé</th>
           <th>Date</th>
@@ -183,28 +276,56 @@ scolaire{% endblock %} {% block page_heading %}Mon espace enseignant{% endblock
       <tbody>
         {% for item in paiements %}
         <tr>
-          <td>{{ item.numero_recu }}</td>
+          <td><code>{{ item.numero_recu }}</code></td>
           <td>{{ '%02d'|format(item.mois) }}/{{ item.annee }}</td>
-          <td>{{ item.montant_paye }}</td>
+          <td><strong>{{ item.montant_paye }} USD</strong></td>
           <td>{{ item.date_paiement }}</td>
           <td>{{ item.mode_paiement }}</td>
           <td>{{ item.reference_paiement or '—' }}</td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="6" class="empty-state">
-            Aucun paiement réel enregistré.
-          </td>
+          <td colspan="6" class="empty-state">Aucun paiement réel enregistré.</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
+
+<script>
+function ouvrirModalDecision(inscriptionId, nomEleve, nomClasse, niveau, decisionActuelle) {
+  document.getElementById('decision_inscription_id').value = inscriptionId;
+  document.getElementById('decisionNomEleve').textContent = nomEleve;
+  document.getElementById('decisionClasse').textContent = nomClasse;
+  document.getElementById('decisionNiveau').textContent = niveau.replace('_', ' ');
+  
+  const info6eme = document.getElementById('info_6eme');
+  const optAdmis = document.getElementById('opt_admis');
+  if (niveau === '6eme_primaire') {
+    info6eme.style.display = 'block';
+    optAdmis.textContent = 'Admis (Fin du cycle primaire achevé)';
+  } else {
+    info6eme.style.display = 'none';
+    optAdmis.textContent = 'Passe dans la classe supérieure';
+  }
+
+  const select = document.getElementById('decision_choisie');
+  select.value = decisionActuelle || '';
+
+  document.getElementById('modalDecisionFinAnnee').style.display = 'flex';
+}
+
+function fermerModalDecision() {
+  document.getElementById('modalDecisionFinAnnee').style.display = 'none';
+}
+</script>
+
 {% else %}
 <section class="panel">
   <p class="notice">
-    Aucun profil enseignant n'est lié à ce compte. Contactez l'administrateur.
+    Aucun profil enseignant n'est associé à ce compte utilisateur. Veuillez contacter l'administrateur de l'établissement.
   </p>
 </section>
-{% endif %} {% endblock %}
+{% endif %}
+{% endblock %}

@@ -1,14 +1,19 @@
-{% extends "base.html" %} {% block title %}Classes | Gestion scolaire{% endblock
-%} {% block page_heading %}Classes{% endblock %} {% block content %}
+{% extends "base.html" %} {% block title %}Classes | GESTION ÉCOLE{% endblock %}
+{% block page_heading %}Classes{% endblock %} {% block content %}
 <section class="page-header">
   <div>
     <p class="eyebrow">ORGANISATION SCOLAIRE</p>
-    <h1>Classes</h1>
-    <p class="muted">Consultez les classes de l'enseignement primaire.</p>
+    <h1>Divisions de l'école primaire</h1>
+    <p class="muted">
+      Consultez les divisions par niveau et année scolaire, leurs enseignants et
+      leurs effectifs.
+    </p>
   </div>
+  {% if current_user.role == 'administrateur' %}
   <a class="btn btn-primary" href="{{ url_for('formulaire_classe') }}"
-    >Ajouter une classe</a
+    >Ajouter une division</a
   >
+  {% endif %}
 </section>
 
 <section class="panel">
@@ -20,23 +25,84 @@
     <table>
       <thead>
         <tr>
-          <th>Nom de la classe</th>
+          <th>Désignation</th>
           <th>Niveau</th>
           <th>Année scolaire</th>
-          <th>Effectif</th>
+          <th>Enseignant affecté</th>
+          <th>Effectif réel</th>
+          <th>Statut</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for classe in classes %}
         <tr>
-          <td>{{ classe.nom }}</td>
-          <td>{{ classe.niveau or '—' }}</td>
+          <td><strong>{{ classe.nom }}</strong></td>
+          <td>
+            {% if classe.niveau == '1ere_primaire' %}1ère primaire {% elif
+            classe.niveau == '2eme_primaire' %}2ème primaire {% elif
+            classe.niveau == '3eme_primaire' %}3ème primaire {% elif
+            classe.niveau == '4eme_primaire' %}4ème primaire {% elif
+            classe.niveau == '5eme_primaire' %}5ème primaire {% elif
+            classe.niveau == '6eme_primaire' %}6ème primaire {% else %}{{
+            classe.niveau or '—' }}{% endif %}
+          </td>
           <td>{{ classe.annee_scolaire or '—' }}</td>
-          <td>{{ classe.effectif if classe.effectif is not none else '—' }}</td>
+          <td>
+            {% if classe.enseignant_titulaire %}
+            <span class="text-dark">{{ classe.enseignant_titulaire }}</span>
+            {% else %}
+            <span class="muted">Non affecté</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="badge badge-info"
+              >{{ classe.effectif if classe.effectif is not none else '0' }}
+              élève(s)</span
+            >
+          </td>
+          <td>
+            {% if classe.statut == 'active' %}
+            <span class="badge badge-success">Active</span>
+            {% else %}
+            <span class="badge">Inactive</span>
+            {% endif %}
+          </td>
+          <td>
+            <a
+              class="btn btn-secondary btn-sm"
+              href="{{ url_for('eleves_classe', classe_id=classe.id) }}"
+            >
+              Consulter les élèves
+            </a>
+            {% if current_user.role == 'administrateur' %}
+            <a
+              class="btn btn-secondary btn-sm"
+              href="{{ url_for('modifier_classe', classe_id=classe.id) }}"
+              >Modifier</a
+            >
+            <form
+              method="POST"
+              action="{{ url_for('changer_statut_classe', classe_id=classe.id) }}"
+              class="inline-form"
+            >
+              <input
+                type="hidden"
+                name="_csrf_token"
+                value="{{ csrf_token() }}"
+              />
+              <button class="btn btn-secondary btn-sm" type="submit">
+                {{ 'Désactiver' if classe.statut == 'active' else 'Réactiver' }}
+              </button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="4" class="empty-state">Aucune classe à afficher.</td>
+          <td colspan="7" class="empty-state">
+            Aucune division n'est enregistrée pour le moment.
+          </td>
         </tr>
         {% endfor %}
       </tbody>

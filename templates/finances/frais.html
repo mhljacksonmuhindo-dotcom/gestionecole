@@ -1,51 +1,87 @@
-{% extends "base.html" %} {% block title %}Frais scolaires | Gestion scolaire{%
-endblock %} {% block page_heading %}Frais scolaires{% endblock %} {% block
-content %}
+{% extends "base.html" %}
+{% block title %}Frais scolaires | GESTION ÉCOLE{% endblock %}
+{% block page_heading %}Frais scolaires par année{% endblock %}
+
+{% block content %}
 <section class="page-header">
   <div>
     <p class="eyebrow">CONFIGURATION FINANCIÈRE</p>
-    <h1>Frais scolaires</h1>
-    <p class="muted">
-      Consultez les types de frais et les montants configurés.
-    </p>
+    <h1>Frais scolaires par année</h1>
+    <p class="muted">Gérez les tarifs annuels, leur historique et leur statut sans impacter les paiements antérieurs.</p>
   </div>
-  <a class="btn btn-primary" href="{{ url_for('formulaire_frais') }}"
-    >Ajouter un type de frais</a
-  >
+  {% if current_user.role == 'administrateur' %}
+  <a class="btn btn-primary" href="{{ url_for('formulaire_frais') }}">+ Ajouter un frais</a>
+  {% endif %}
 </section>
 
 <section class="panel">
   <div class="panel-heading">
-    <h2>Types de frais</h2>
+    <h2>Liste des frais scolaires</h2>
   </div>
   <div class="table-wrapper">
     <table>
       <thead>
         <tr>
-          <th>Type de frais</th>
-          <th>Montant prévu</th>
+          <th>Libellé du frais</th>
+          <th>Montant</th>
           <th>Année scolaire</th>
+          <th>Caractère</th>
           <th>Statut</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for frais in types_frais %}
         <tr>
-          <td>{{ frais.nom }}</td>
-          <td>{{ frais.montant }} FC</td>
+          <td><strong>{{ frais.nom }}</strong></td>
+          <td><strong>{{ frais.montant }} USD</strong></td>
           <td>{{ frais.annee_scolaire or '—' }}</td>
-          <td>{{ frais.statut or '—' }}</td>
+          <td>
+            {% if frais.obligatoire %}
+              <span class="badge badge-secondary">Obligatoire</span>
+            {% else %}
+              <span class="muted">Facultatif</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if frais.statut == 'actif' %}
+              <span class="badge badge-success">Actif</span>
+            {% else %}
+              <span class="badge badge-warning">Inactif</span>
+            {% endif %}
+          </td>
+          <td class="table-actions">
+            {% if current_user.role == 'administrateur' %}
+            <a class="btn btn-sm btn-outline" href="{{ url_for('modifier_frais', frais_id=frais.id) }}">Modifier</a>
+            
+            <!-- Bascule statut actif/inactif -->
+            <form method="POST" action="{{ url_for('changer_statut_frais', frais_id=frais.id) }}" style="display:inline;">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              {% if frais.statut == 'actif' %}
+                <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Désactiver ce frais pour les prochains encaissements ?');">Désactiver</button>
+              {% else %}
+                <button type="submit" class="btn btn-sm btn-success">Activer</button>
+              {% endif %}
+            </form>
+
+            <!-- Suppression contrôlée (uniquement si jamais utilisé) -->
+            <form method="POST" action="{{ url_for('supprimer_frais', frais_id=frais.id) }}" style="display:inline;">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer définitivement ce frais ? Cette opération n\'est permise que si aucune transaction n\'y est rattachée.');">Supprimer</button>
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="4" class="empty-state">
-            Aucun type de frais à afficher.
-          </td>
+          <td colspan="6" class="empty-state">Aucun type de frais configuré.</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  
+  <p class="notice">
+    <strong>Règle d'intégrité :</strong> Un frais ayant déjà été utilisé dans un paiement élève ne peut pas être supprimé afin de garantir la sincérité des écritures comptables.
+  </p>
 </section>
 {% endblock %}
