@@ -425,78 +425,69 @@ def statistiques_dashboard(ecole_id: int) -> dict[str, Any]:
 
 
 def charger_encaissements_mensuels(ecole_id: int, annee_scolaire_id: int | None = None) -> list[dict[str, Any]]:
-    connexion = obtenir_connexion()
-    if connexion is None:
-        return []
+    # Mois scolaires de Septembre à Août (ou Janvier à Décembre)
+    mois_scolaires = [
+        (9, "Sept"), (10, "Oct"), (11, "Nov"), (12, "Déc"),
+        (1, "Jan"), (2, "Fév"), (3, "Mars"), (4, "Avr"),
+        (5, "Mai"), (6, "Juin"), (7, "Juil"), (8, "Août"),
+    ]
+    montants_par_mois = {m_num: Decimal("0.00") for m_num, _ in mois_scolaires}
 
-    try:
-        curseur = connexion.cursor(dictionary=True)
-        if annee_scolaire_id is None:
+    connexion = obtenir_connexion()
+    if connexion is not None:
+        try:
+            curseur = connexion.cursor(dictionary=True)
+            if annee_scolaire_id is None:
+                curseur.execute(
+                    """
+                    SELECT id FROM annees_scolaires
+                    WHERE ecole_id = %s AND statut = 'en_cours'
+                    ORDER BY date_debut DESC LIMIT 1
+                    """,
+                    (ecole_id,),
+                )
+                annee = cast(dict[str, Any] | None, curseur.fetchone())
+                if annee:
+                    annee_scolaire_id = int(annee["id"])
+
             curseur.execute(
                 """
-                SELECT id
-                FROM annees_scolaires
-                WHERE ecole_id = %s AND statut = 'en_cours'
-                ORDER BY date_debut DESC
-                LIMIT 1
+                SELECT MONTH(p.date_paiement) AS mois_num,
+                       COALESCE(SUM(p.montant_paye), 0) AS montant
+                FROM paiements_eleves p
+                INNER JOIN inscriptions i ON i.id = p.inscription_id
+                INNER JOIN eleves e ON e.id = i.eleve_id
+                WHERE e.ecole_id = %s
+                  AND (%s IS NULL OR i.annee_scolaire_id = %s)
+                  AND p.statut = 'valide'
+                GROUP BY MONTH(p.date_paiement)
                 """,
-                (ecole_id,),
+                (ecole_id, annee_scolaire_id, annee_scolaire_id),
             )
-            annee = cast(dict[str, Any] | None, curseur.fetchone())
-            if annee is None:
-                return []
-            annee_scolaire_id = int(annee["id"])
+            lignes = curseur.fetchall()
+            for ligne in lignes:
+                m_num = int(ligne["mois_num"])
+                if m_num in montants_par_mois:
+                    montants_par_mois[m_num] = Decimal(str(ligne["montant"] or 0))
+        except Exception:
+            app.logger.exception("Chargement des encaissements mensuels impossible.")
+        finally:
+            connexion.close()
 
-        curseur.execute(
-            """
-            SELECT MONTH(p.date_paiement) AS mois_num,
-                   CASE MONTH(p.date_paiement)
-                       WHEN 1 THEN 'Jan' WHEN 2 THEN 'Fév' WHEN 3 THEN 'Mars'
-                       WHEN 4 THEN 'Avr' WHEN 5 THEN 'Mai' WHEN 6 THEN 'Juin'
-                       WHEN 7 THEN 'Juil' WHEN 8 THEN 'Août' WHEN 9 THEN 'Sept'
-                       WHEN 10 THEN 'Oct' WHEN 11 THEN 'Nov' WHEN 12 THEN 'Déc'
-                   END AS nom,
-                   SUM(p.montant_paye) AS montant
-            FROM paiements_eleves p
-            INNER JOIN inscriptions i ON i.id = p.inscription_id
-            INNER JOIN eleves e ON e.id = i.eleve_id
-            WHERE e.ecole_id = %s
-              AND i.annee_scolaire_id = %s
-              AND p.statut = 'valide'
-            GROUP BY MONTH(p.date_paiement), CASE MONTH(p.date_paiement)
-                       WHEN 1 THEN 'Jan' WHEN 2 THEN 'Fév' WHEN 3 THEN 'Mars'
-                       WHEN 4 THEN 'Avr' WHEN 5 THEN 'Mai' WHEN 6 THEN 'Juin'
-                       WHEN 7 THEN 'Juil' WHEN 8 THEN 'Août' WHEN 9 THEN 'Sept'
-                       WHEN 10 THEN 'Oct' WHEN 11 THEN 'Nov' WHEN 12 THEN 'Déc'
-                   END
-            ORDER BY MONTH(p.date_paiement)
-            """,
-            (ecole_id, annee_scolaire_id),
-        )
-        donnees = cast(list[dict[str, Any]], curseur.fetchall())
-        if not donnees:
-            return []
+    valeurs = list(montants_par_mois.values())
+    montant_max = max(valeurs) if valeurs else Decimal("0")
 
-        montants = [Decimal(str(donnee.get("montant") or 0)) for donnee in donnees]
-        montant_max = max(montants) if montants else Decimal("0")
-        if montant_max <= 0:
-            return []
-
-        resultats: list[dict[str, Any]] = []
-        for donnee in donnees:
-            montant = Decimal(str(donnee.get("montant") or 0))
-            pourcentage = 100.0 if montant_max == 0 else float((montant / montant_max) * 100)
-            resultats.append({
-                "nom": donnee.get("nom") or "",
-                "montant": float(montant),
-                "pourcentage": round(pourcentage, 1),
-            })
-        return resultats
-    except Exception:
-        app.logger.exception("Chargement des encaissements mensuels impossible.")
-        return []
-    finally:
-        connexion.close()
+    resultats: list[dict[str, Any]] = []
+    for m_num, m_nom in mois_scolaires:
+        mt = montants_par_mois[m_num]
+        pct = 0.0 if montant_max == 0 else float((mt / montant_max) * 100)
+        resultats.append({
+            "mois_num": m_num,
+            "nom": m_nom,
+            "montant": float(mt),
+            "pourcentage": round(pct, 1),
+        })
+    return resultats
 
 
 def charger_table(nom_table) -> tuple[list[dict[str, Any]], str]:
@@ -953,14 +944,69 @@ def dashboard():
     statistiques = statistiques_dashboard(g.current_user["ecole_id"])
     encaissements_mensuels = charger_encaissements_mensuels(g.current_user["ecole_id"], annee_scolaire_id)
 
+    annee_scolaire_libelle: str | None = None
+    notifications: list[dict[str, Any]] = []
+    derniers_paiements: list[dict[str, Any]] = []
+
+    connexion = obtenir_connexion()
+    if connexion is not None:
+        try:
+            curseur = connexion.cursor(dictionary=True)
+            # Récupérer l'année scolaire active ou demandée
+            curseur.execute(
+                """
+                SELECT id, libelle FROM annees_scolaires
+                WHERE ecole_id = %s AND (id = %s OR (statut = 'en_cours' AND %s IS NULL))
+                ORDER BY date_debut DESC LIMIT 1
+                """,
+                (g.current_user["ecole_id"], annee_scolaire_id, annee_scolaire_id),
+            )
+            annee_row = curseur.fetchone()
+            if annee_row:
+                annee_scolaire_libelle = str(annee_row["libelle"])
+
+            # Notifications récentes pour la direction
+            curseur.execute(
+                """
+                SELECT n.id, n.titre, n.message, n.type, n.date_creation
+                FROM notifications n
+                WHERE n.ecole_id = %s
+                ORDER BY n.date_creation DESC LIMIT 5
+                """,
+                (g.current_user["ecole_id"],),
+            )
+            notifications = cast(list[dict[str, Any]], curseur.fetchall())
+
+            # Derniers paiements des élèves
+            curseur.execute(
+                """
+                SELECT p.numero_recu, p.montant_paye AS montant, p.date_paiement, p.statut,
+                       CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS eleve,
+                       f.nom AS type_frais, ec.devise
+                FROM paiements_eleves p
+                INNER JOIN inscriptions i ON i.id = p.inscription_id
+                INNER JOIN eleves e ON e.id = i.eleve_id
+                INNER JOIN types_frais f ON f.id = p.type_frais_id
+                INNER JOIN ecoles ec ON ec.id = e.ecole_id
+                WHERE e.ecole_id = %s
+                ORDER BY p.date_paiement DESC, p.id DESC LIMIT 5
+                """,
+                (g.current_user["ecole_id"],),
+            )
+            derniers_paiements = cast(list[dict[str, Any]], curseur.fetchall())
+        except Exception:
+            app.logger.exception("Chargement des données du tableau de bord impossible.")
+        finally:
+            connexion.close()
+
     return render_template(
         "dashboard.html",
         statistiques=statistiques,
         current_user=g.current_user,
-        annee_scolaire=None,
+        annee_scolaire=annee_scolaire_libelle,
         encaissements_mensuels=encaissements_mensuels,
-        notifications=[],
-        derniers_paiements=[],
+        notifications=notifications,
+        derniers_paiements=derniers_paiements,
     )
 
 

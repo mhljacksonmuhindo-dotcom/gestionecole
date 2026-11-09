@@ -8,6 +8,7 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
     />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
   </head>
   <body>
@@ -135,9 +136,9 @@
           <div class="topbar-right">
             <div class="year-select">
               <small>Année scolaire</small>
-              <strong>{{ annee_scolaire or 'Non sélectionnée' }}</strong>
+              <strong>{{ annee_scolaire or 'Année active' }}</strong>
             </div>
-            <div class="avatar">AD</div>
+            <div class="avatar">{{ current_user.nom[:2] if current_user.nom else 'AD' }}</div>
             <div class="profile-info">
               <strong
                 >{{ current_user.nom }} {{ current_user.prenom or '' }}</strong
@@ -176,14 +177,14 @@
             <article class="stat-card">
               <p class="stat-title">Élèves inscrits (année en cours)</p>
               <h2>{{ statistiques.get('eleves', '—') }}</h2>
-              <p class="stat-note">Année scolaire sélectionnée</p>
+              <p class="stat-note">{{ annee_scolaire or 'Année en cours' }}</p>
             </article>
 
             <article class="stat-card">
               <p class="stat-title">Paiements du mois</p>
               <h2>
-                {{ statistiques.get('paiements_mois', '—') }}
-                <span>{{ statistiques.get('devise', '') }}</span>
+                {{ statistiques.get('paiements_mois', '0') }}
+                <span>{{ statistiques.get('devise', 'USD') }}</span>
               </h2>
               <p class="stat-note">
                 Somme encaissée ce mois, paiements valides
@@ -192,27 +193,27 @@
 
             <article class="stat-card">
               <p class="stat-title">Présences saisies aujourd'hui</p>
-              <h2>{{ statistiques.get('presences', '—') }}</h2>
-              <p class="stat-note">Enregistrements de présence</p>
+              <h2>{{ statistiques.get('presences', '0') }}</h2>
+              <p class="stat-note">Enregistrements du jour</p>
             </article>
 
             <article class="stat-card">
               <p class="stat-title">Rémunérations validées</p>
-              <h2>{{ statistiques.get('remunerations', '—') }}</h2>
+              <h2>{{ statistiques.get('remunerations', '0') }}</h2>
               <p class="stat-note">
-                Dossiers validés, pas nécessairement payés
+                Prêtes pour paiement
               </p>
             </article>
 
             <article class="stat-card">
               <p class="stat-title">École active</p>
-              <h2>{{ statistiques.get('ecoles', '—') }}</h2>
-              <p class="stat-note">Établissement du compte connecté</p>
+              <h2>{{ statistiques.get('ecoles', '1') }}</h2>
+              <p class="stat-note">Établissement connecté</p>
             </article>
 
             <article class="stat-card">
               <p class="stat-title">Classes actives</p>
-              <h2>{{ statistiques.get('classes', '—') }}</h2>
+              <h2>{{ statistiques.get('classes', '0') }}</h2>
               <p class="stat-note">Année scolaire en cours</p>
             </article>
           </div>
@@ -222,24 +223,17 @@
               <div class="panel-header">
                 <div>
                   <h3>Encaissements mensuels</h3>
-                  <p>Suivi des paiements des élèves</p>
+                  <p>Suivi des paiements des élèves pour {{ annee_scolaire or 'l\'année' }}</p>
                 </div>
-                <span class="period-label">Année scolaire</span>
+                <span class="period-label">{{ statistiques.get('devise', 'USD') }}</span>
               </div>
 
               <div class="chart-panel">
-                {% if encaissements_mensuels %}
                 <canvas id="monthlyChart"></canvas>
-                {% else %}
-                <p class="table-empty">
-                  Aucun paiement enregistré pour cette année scolaire.
-                </p>
-                {% endif %}
               </div>
 
               <p class="demo-note">
-                Le graphique utilise les paiements réels enregistrés en base
-                pour l'année scolaire active.
+                Le diagramme compile les montants réels encaissés chaque mois pour l'établissement.
               </p>
             </section>
 
@@ -247,20 +241,31 @@
               <div class="panel-header">
                 <div>
                   <h3>Notifications</h3>
-                  <p>Informations à suivre</p>
+                  <p>Communications et alertes récentes</p>
                 </div>
+                <a href="{{ url_for('page_module', module='notifications') }}" class="btn btn-sm btn-secondary">
+                  Toutes
+                </a>
               </div>
 
-              <div class="empty-state">
-                {% if notifications %} {% for notification in notifications %}
-                <div class="notification-item">
-                  <strong>{{ notification.titre }}</strong>
-                  <p>{{ notification.message }}</p>
-                </div>
-                {% endfor %} {% else %}
-                <div class="empty-icon">♧</div>
-                <strong>Aucune notification</strong>
-                <p>Les notifications apparaîtront ici.</p>
+              <div style="padding: 0.5rem 1rem;">
+                {% if notifications %}
+                  {% for notification in notifications %}
+                  <div style="padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                      <strong>{{ notification.titre }}</strong>
+                      <span class="badge badge-info">{{ notification.type }}</span>
+                    </div>
+                    <p style="margin: 0; color: #475569; font-size: 0.9em;">{{ notification.message }}</p>
+                    <small class="muted">{{ notification.date_creation }}</small>
+                  </div>
+                  {% endfor %}
+                {% else %}
+                  <div class="empty-state">
+                    <div class="empty-icon">♧</div>
+                    <strong>Aucune notification</strong>
+                    <p>Les notifications récentes de l'école apparaîtront ici.</p>
+                  </div>
                 {% endif %}
               </div>
             </section>
@@ -269,14 +274,14 @@
           <section class="panel payments-panel">
             <div class="panel-header">
               <div>
-                <h3>Derniers paiements</h3>
-                <p>Suivi des encaissements des élèves</p>
+                <h3>Derniers paiements des élèves</h3>
+                <p>Suivi des encaissements récents</p>
               </div>
               <a
                 class="btn btn-secondary"
                 href="{{ url_for('page_module', module='paiements_eleves') }}"
               >
-                Voir les paiements
+                Voir tous les paiements
               </a>
             </div>
 
@@ -295,17 +300,31 @@
                 <tbody>
                   {% for paiement in derniers_paiements %}
                   <tr>
-                    <td>{{ paiement.numero_recu }}</td>
-                    <td>{{ paiement.eleve }}</td>
+                    <td>
+                      <a href="{{ url_for('recu_paiement', numero_recu=paiement.numero_recu) }}" target="_blank">
+                        <code>{{ paiement.numero_recu }}</code>
+                      </a>
+                    </td>
+                    <td><strong>{{ paiement.eleve }}</strong></td>
                     <td>{{ paiement.type_frais }}</td>
-                    <td>{{ paiement.montant }} FC</td>
+                    <td>
+                      <strong style="color: #15803d;">
+                        {{ paiement.montant }} {{ paiement.devise or statistiques.get('devise', 'USD') }}
+                      </strong>
+                    </td>
                     <td>{{ paiement.date_paiement }}</td>
-                    <td>{{ paiement.statut }}</td>
+                    <td>
+                      {% if paiement.statut == 'valide' %}
+                        <span class="badge badge-success">Validé</span>
+                      {% else %}
+                        <span class="badge badge-danger">Annulé</span>
+                      {% endif %}
+                    </td>
                   </tr>
                   {% else %}
                   <tr>
                     <td colspan="6" class="table-empty">
-                      Aucun paiement à afficher.
+                      Aucun paiement enregistré pour le moment.
                     </td>
                   </tr>
                   {% endfor %}
@@ -344,12 +363,12 @@
           data: {
             labels: labels,
             datasets: [{
-              label: 'Encaissements',
+              label: 'Encaissements ({{ statistiques.get("devise", "USD") }})',
               data: values,
-              backgroundColor: ['#3B82F6', '#60A5FA', '#22C55E', '#F59E0B', '#A78BFA', '#14B8A6', '#F97316', '#0EA5E9', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444'],
-              borderRadius: 10,
+              backgroundColor: ['#3B82F6', '#60A5FA', '#22C55E', '#10B981', '#14B8A6', '#0EA5E9', '#A78BFA', '#8B5CF6', '#F59E0B', '#F97316', '#EF4444', '#64748B'],
+              borderRadius: 8,
               borderSkipped: false,
-              maxBarThickness: 36
+              maxBarThickness: 32
             }]
           },
           options: {
@@ -361,7 +380,7 @@
               tooltip: {
                 callbacks: {
                   label: function (context) {
-                    return `${context.parsed.y.toLocaleString('fr-FR')} FC`;
+                    return `${context.parsed.y.toLocaleString('fr-FR')} {{ statistiques.get("devise", "USD") }}`;
                   }
                 }
               }
