@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Préparation de la paie | Gestion scolaire{% endblock %}
+{% block page_heading %}Préparation des rémunérations{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow"><a href="{{ url_for('page_module', module='remunerations') }}">← Retour aux rémunérations</a></p>
+    <h1>Calcul et préparation mensuelle des rémunérations</h1>
+    <p class="muted">
+      Calcul automatique basé sur le salaire de base, les présences enregistrées et le pool de primes collecté depuis les frais élèves.
+    </p>
+  </div>
+</section>
+
+<!-- Sélecteur de période -->
+<section class="panel">
+  <div class="panel-heading">
+    <h2>1. Sélection de la période</h2>
+  </div>
+  <form method="GET" action="{{ url_for('preparer_remuneration') }}" class="form-grid" style="align-items: flex-end;">
+    <div class="form-group">
+      <label for="mois">Mois</label>
+      <select id="mois" name="mois" class="form-control" required>
+        {% for m in range(1, 13) %}
+        <option value="{{ m }}" {% if m == mois_selectionne %}selected{% endif %}>
+          {{ '%02d'|format(m) }} - 
+          {% if m == 1 %}Janvier{% elif m == 2 %}Février{% elif m == 3 %}Mars{% elif m == 4 %}Avril{% elif m == 5 %}Mai{% elif m == 6 %}Juin{% elif m == 7 %}Juillet{% elif m == 8 %}Août{% elif m == 9 %}Septembre{% elif m == 10 %}Octobre{% elif m == 11 %}Novembre{% else %}Décembre{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="annee">Année</label>
+      <input id="annee" name="annee" type="number" min="2020" max="2050" value="{{ annee_selectionnee }}" required class="form-control" />
+    </div>
+
+    <div class="form-group">
+      <button type="submit" class="btn btn-secondary">Actualiser les calculs</button>
+    </div>
+  </form>
+</section>
+
+<!-- Statistiques du pool -->
+<section class="stats-grid">
+  <article class="stat-card">
+    <p class="stat-title">Période concernée</p>
+    <h2>{{ '%02d'|format(mois_selectionne) }}/{{ annee_selectionnee }}</h2>
+    <p class="stat-note">{{ annee_scolaire.libelle if annee_scolaire else 'Année active' }}</p>
+  </article>
+
+  <article class="stat-card">
+    <p class="stat-title">Pool de primes disponible</p>
+    <h2>{{ total_pool }} {{ devise }}</h2>
+    <p class="stat-note">Issu des répartitions des frais élèves du mois</p>
+  </article>
+
+  <article class="stat-card">
+    <p class="stat-title">Enseignants actifs</p>
+    <h2>{{ enseignants_calculs|length }}</h2>
+    <p class="stat-note">Personnels éligibles à la rémunération</p>
+  </article>
+
+  <article class="stat-card">
+    <p class="stat-title">Total présences cumulées</p>
+    <h2>{{ total_jours_presence_tous }} jrs</h2>
+    <p class="stat-note">Base de répartition du pool de primes</p>
+  </article>
+</section>
+
+<!-- Tableau de prévisualisation et génération -->
+<section class="panel">
+  <div class="panel-heading">
+    <h2>2. Prévisualisation des rémunérations</h2>
+  </div>
+
+  {% if not enseignants_calculs %}
+  <div class="empty-state">
+    <p>Aucun enseignant actif n'est enregistré dans l'établissement.</p>
+  </div>
+  {% else %}
+  <form method="POST" action="{{ url_for('preparer_remuneration') }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="mois" value="{{ mois_selectionne }}" />
+    <input type="hidden" name="annee" value="{{ annee_selectionnee }}" />
+    <input type="hidden" name="action" value="enregistrer" />
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Enseignant</th>
+            <th>Salaire de base</th>
+            <th>Présences</th>
+            <th>Quote-part prime</th>
+            <th>Montant calculé</th>
+            <th>Montant à valider ({{ devise }})</th>
+            <th>État actuel</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ens in enseignants_calculs %}
+          <tr>
+            <td>
+              <strong>{{ ens.nom_complet }}</strong><br>
+              <small class="muted"><code>{{ ens.matricule }}</code></small>
+            </td>
+            <td>{{ ens.salaire_base }} {{ devise }}</td>
+            <td>
+              <strong>{{ ens.jours_presents }}</strong> / {{ ens.jours_prevus }} jrs
+              {% if ens.jours_absents > 0 %}
+              <span class="badge badge-warning">{{ ens.jours_absents }} abs.</span>
+              {% endif %}
+            </td>
+            <td>{{ ens.part_pool }} {{ devise }}</td>
+            <td><strong>{{ ens.montant_calcule }} {{ devise }}</strong></td>
+            <td style="max-width: 140px;">
+              {% if ens.rem_existante and ens.rem_existante.statut in ['validee', 'payee'] %}
+                <strong>{{ ens.rem_existante.montant_valide }} {{ devise }}</strong>
+              {% else %}
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="montant_valide_{{ ens.id }}"
+                  value="{{ ens.rem_existante.montant_valide if ens.rem_existante else ens.montant_valide }}"
+                  class="form-control"
+                  style="width: 120px; font-weight: bold;"
+                  required
+                />
+              {% endif %}
+            </td>
+            <td>
+              {% if ens.rem_existante %}
+                {% if ens.rem_existante.statut == 'payee' %}
+                  <span class="badge badge-success">Déjà payée</span>
+                {% elif ens.rem_existante.statut == 'validee' %}
+                  <span class="badge badge-primary">Validée (en attente paiement)</span>
+                {% elif ens.rem_existante.statut == 'a_valider' %}
+                  <span class="badge badge-warning">En attente validation</span>
+                {% elif ens.rem_existante.statut == 'refusee' %}
+                  <span class="badge badge-danger">Refusée</span>
+                {% else %}
+                  <span class="badge badge-secondary">{{ ens.rem_existante.statut }}</span>
+                {% endif %}
+              {% else %}
+                <span class="muted">Non préparée</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="form-actions" style="margin-top: 1.5rem; display: flex; justify-content: flex-end; gap: 1rem;">
+      <a href="{{ url_for('page_module', module='remunerations') }}" class="btn btn-secondary">Annuler</a>
+      <button type="submit" class="btn btn-primary" onclick="return confirm('Confirmer la préparation de ces rémunérations pour la période {{ mois_selectionne }}/{{ annee_selectionnee }} ? Les rémunérations seront placées en attente de validation administrative.');">
+        Enregistrer et soumettre pour validation
+      </button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

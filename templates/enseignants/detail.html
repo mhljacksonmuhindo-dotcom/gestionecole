@@ -10,7 +10,10 @@
     <p class="muted">Matricule : <code>{{ enseignant.matricule }}</code> | Statut : <strong>{{ enseignant.statut }}</strong></p>
   </div>
   {% if current_user.role == 'administrateur' %}
-  <div class="form-actions">
+  <div class="form-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+    <a href="{{ url_for('modifier_enseignant', enseignant_id=enseignant.id) }}" class="btn btn-secondary">
+      ✏️ Modifier le dossier
+    </a>
     
     <form method="POST" action="{{ url_for('changer_statut_enseignant', enseignant_id=enseignant.id) }}" style="display:inline;">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
@@ -91,7 +94,6 @@
           </td>
           <td>
             {% if affectation.statut == 'active' and current_user.role == 'administrateur' %}
-            <!-- Clôturer l'affectation (Section 6) -->
             <form method="POST" action="{{ url_for('cloturer_affectation_enseignant', affectation_id=affectation.id) }}" style="display:inline;">
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Clôturer cette affectation ? La date de fin sera enregistrée à aujourd\'hui et l\'historique restera intact.');">
@@ -106,6 +108,62 @@
         {% else %}
         <tr>
           <td colspan="8" class="empty-state">Aucune affectation enregistrée.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Historique des rémunérations de cet enseignant</h2>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Période</th>
+          <th>Présences</th>
+          <th>Montant calculé</th>
+          <th>Montant validé</th>
+          <th>État</th>
+          <th>Reçu de paie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rem in remunerations %}
+        <tr>
+          <td>{{ '%02d'|format(rem.mois) }}/{{ rem.annee }}</td>
+          <td>{{ rem.total_jours_presents or 0 }} / {{ rem.total_jours_prevus or 0 }} jrs</td>
+          <td>{{ rem.montant_calcule or '0.00' }} USD</td>
+          <td><strong>{{ rem.montant_valide or '0.00' }} USD</strong></td>
+          <td>
+            {% if rem.statut == 'payee' %}
+              <span class="badge badge-success">✓ Payée</span>
+            {% elif rem.statut == 'validee' %}
+              <span class="badge badge-primary">Validée</span>
+            {% elif rem.statut == 'a_valider' %}
+              <span class="badge badge-warning">En attente</span>
+            {% elif rem.statut == 'refusee' %}
+              <span class="badge badge-danger">Refusée</span>
+            {% else %}
+              <span class="badge badge-secondary">{{ rem.statut }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if rem.numero_recu %}
+            <a href="{{ url_for('recu_paiement_enseignant', numero_recu=rem.numero_recu) }}" class="btn btn-sm btn-secondary" target="_blank">
+              🖨️ Reçu
+            </a>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">Aucune rémunération préparée pour cet enseignant.</td>
         </tr>
         {% endfor %}
       </tbody>

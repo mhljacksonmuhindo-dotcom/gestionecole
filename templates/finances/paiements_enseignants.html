@@ -1,12 +1,22 @@
-{% extends "base.html" %} {% block title %}Paiements enseignants | Gestion
-scolaire{% endblock %} {% block page_heading %}Paiements des enseignants{%
-endblock %} {% block content %}
+{% extends "base.html" %}
+
+{% block title %}Paiements enseignants | Gestion scolaire{% endblock %}
+{% block page_heading %}Paiements des enseignants{% endblock %}
+
+{% block content %}
 <section class="page-header">
   <div>
     <p class="eyebrow">DÉCAISSEMENTS</p>
     <h1>Paiements des enseignants</h1>
-    <p class="muted">Historique des rémunérations effectivement payées.</p>
+    <p class="muted">Historique des rémunérations effectivement décaissées par la caisse.</p>
   </div>
+  {% if current_user.role == 'caissier' %}
+  <div class="form-actions">
+    <a href="{{ url_for('espace_secretaire') }}" class="btn btn-secondary">
+      ← Retour à l'espace caisse
+    </a>
+  </div>
+  {% endif %}
 </section>
 
 <section class="panel">
@@ -24,22 +34,36 @@ endblock %} {% block content %}
           <th>Montant payé</th>
           <th>Mode</th>
           <th>Référence</th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody>
         {% for paiement in paiements_enseignants %}
         <tr>
-          <td>{{ paiement.numero_recu or '—' }}</td>
+          <td>
+            <a href="{{ url_for('recu_paiement_enseignant', numero_recu=paiement.numero_recu) }}" target="_blank">
+              <code>{{ paiement.numero_recu or '—' }}</code>
+            </a>
+          </td>
           <td>{{ paiement.date_paiement or '—' }}</td>
-          <td>{{ paiement.enseignant or '—' }}</td>
+          <td><strong>{{ paiement.enseignant or '—' }}</strong></td>
           <td>{{ '%02d'|format(paiement.mois) }}/{{ paiement.annee }}</td>
-          <td>{{ paiement.montant }} {{ paiement.devise or '' }}</td>
-          <td>{{ paiement.mode_paiement or '—' }}</td>
+          <td>
+            <span style="font-weight: bold; color: #15803d;">
+              {{ paiement.montant }} {{ paiement.devise or '' }}
+            </span>
+          </td>
+          <td>{{ paiement.mode_paiement | capitalize if paiement.mode_paiement else '—' }}</td>
           <td>{{ paiement.reference or '—' }}</td>
+          <td>
+            <a href="{{ url_for('recu_paiement_enseignant', numero_recu=paiement.numero_recu) }}" class="btn btn-sm btn-secondary" target="_blank">
+              🖨️ Reçu
+            </a>
+          </td>
         </tr>
         {% else %}
         <tr>
-          <td colspan="7" class="empty-state">
+          <td colspan="8" class="empty-state">
             Aucun paiement enseignant à afficher.
           </td>
         </tr>

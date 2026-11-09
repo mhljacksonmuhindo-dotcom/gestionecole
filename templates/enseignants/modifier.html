@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier l'enseignant | Gestion scolaire{% endblock %}
+{% block page_heading %}Modifier le dossier enseignant / personnel{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow"><a href="{{ url_for('detail_enseignant', enseignant_id=enseignant.id) }}">← Retour à la fiche</a></p>
+    <h1>Modifier : {{ enseignant.nom }} {{ enseignant.prenom or '' }}</h1>
+    <p class="muted">Mise à jour des coordonnées professionnelles, du salaire de base et du rattachement de compte.</p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-heading">
+    <h2>Informations du dossier</h2>
+  </div>
+
+  <form method="POST" action="{{ url_for('modifier_enseignant', enseignant_id=enseignant.id) }}">
+    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nom">Nom *</label>
+        <input id="nom" name="nom" value="{{ enseignant.nom }}" required />
+      </div>
+
+      <div class="form-group">
+        <label for="postnom">Postnom</label>
+        <input id="postnom" name="postnom" value="{{ enseignant.postnom or '' }}" />
+      </div>
+
+      <div class="form-group">
+        <label for="prenom">Prénom</label>
+        <input id="prenom" name="prenom" value="{{ enseignant.prenom or '' }}" />
+      </div>
+
+      <div class="form-group">
+        <label for="sexe">Sexe *</label>
+        <select id="sexe" name="sexe" required>
+          <option value="M" {% if enseignant.sexe == 'M' %}selected{% endif %}>Masculin (M)</option>
+          <option value="F" {% if enseignant.sexe == 'F' %}selected{% endif %}>Féminin (F)</option>
+          <option value="autre" {% if enseignant.sexe == 'autre' %}selected{% endif %}>Autre</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="telephone">Téléphone</label>
+        <input type="tel" id="telephone" name="telephone" value="{{ enseignant.telephone or '' }}" />
+      </div>
+
+      <div class="form-group">
+        <label for="email">E-mail</label>
+        <input type="email" id="email" name="email" value="{{ enseignant.email or '' }}" />
+      </div>
+
+      <div class="form-group">
+        <label for="adresse">Adresse de résidence</label>
+        <input id="adresse" name="adresse" value="{{ enseignant.adresse or '' }}" />
+      </div>
+
+      <div class="form-group">
+        <label for="specialite">Fonction / Spécialité</label>
+        <input id="specialite" name="specialite" value="{{ enseignant.specialite or '' }}" placeholder="Ex: Titulaire 1ère primaire, Secrétaire, Comptable" />
+      </div>
+
+      <div class="form-group">
+        <label for="salaire_base">Salaire de base (USD) *</label>
+        <input type="number" step="0.01" min="0" id="salaire_base" name="salaire_base" value="{{ enseignant.salaire_base or '0.00' }}" required style="font-weight: bold;" />
+      </div>
+
+      <div class="form-group">
+        <label for="utilisateur_id">Compte utilisateur rattaché</label>
+        <select id="utilisateur_id" name="utilisateur_id">
+          <option value="">Aucun compte rattaché</option>
+          {% for u in utilisateurs %}
+          <option value="{{ u.id }}" {% if enseignant.utilisateur_id == u.id %}selected{% endif %}>
+            {{ u.nom_complet }} (Identifiant : {{ u.nom_utilisateur }}, Rôle : {{ u.role }})
+          </option>
+          {% endfor %}
+        </select>
+        <small class="muted">Permet au titulaire de ce compte d'accéder à son espace personnel (notifications, bulletins et rémunérations).</small>
+      </div>
+    </div>
+
+    <div class="form-actions" style="margin-top: 1.5rem;">
+      <a href="{{ url_for('detail_enseignant', enseignant_id=enseignant.id) }}" class="btn btn-secondary">Annuler</a>
+      <button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

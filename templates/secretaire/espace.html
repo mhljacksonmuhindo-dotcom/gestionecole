@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Espace Secrétaire & Caisse | Gestion scolaire{% endblock %}
+{% block page_heading %}Espace Secrétaire & Caisse{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <p class="eyebrow">SERVICES ADMINISTRATIFS ET FINANCIERS</p>
+    <h1>Espace Secrétaire / Caissier</h1>
+    <p class="muted">
+      Gestion des encaissements élèves, décaissement des rémunérations validées par la direction, suivi de vos notifications et de votre situation personnelle.
+    </p>
+  </div>
+  <div class="form-actions">
+    <a href="{{ url_for('formulaire_paiement_eleve') }}" class="btn btn-primary">
+      ➕ Nouveau paiement élève
+    </a>
+  </div>
+</section>
+
+<!-- Synthèse -->
+<section class="stats-grid">
+  <article class="stat-card">
+    <p class="stat-title">Rémunérations à payer</p>
+    <h2>{{ remunerations_validees|length }}</h2>
+    <p class="stat-note">Validées par l'administrateur, prêtes pour décaissement</p>
+  </article>
+
+  <article class="stat-card">
+    <p class="stat-title">Vos encaissements récents</p>
+    <h2>{{ derniers_paiements|length }}</h2>
+    <p class="stat-note">Paiements élèves traités par vous</p>
+  </article>
+
+  <article class="stat-card">
+    <p class="stat-title">Notifications reçues</p>
+    <h2>{{ notifications|length }}</h2>
+    <p class="stat-note">Messages de la direction et rappels</p>
+  </article>
+
+  <article class="stat-card">
+    <p class="stat-title">Statut personnel</p>
+    <h2>{{ enseignant_perso.statut|capitalize if enseignant_perso else 'Non rattaché' }}</h2>
+    <p class="stat-note">
+      {% if enseignant_perso %}
+        Fiche personnel : {{ enseignant_perso.matricule }}
+      {% else %}
+        Compte utilisateur caisse
+      {% endif %}
+    </p>
+  </article>
+</section>
+
+<!-- Section 1 : Rémunérations validées à décaisser -->
+<section class="panel">
+  <div class="panel-heading">
+    <h2>1. Rémunérations validées par l'administrateur (À payer aux enseignants)</h2>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Bénéficiaire</th>
+          <th>Période</th>
+          <th>Montant validé</th>
+          <th>Mode de règlement & Référence</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rem in remunerations_validees %}
+        <tr>
+          <td><strong>{{ rem.enseignant }}</strong></td>
+          <td>{{ '%02d'|format(rem.mois) }}/{{ rem.annee }}</td>
+          <td>
+            <span style="font-size: 1.1em; font-weight: bold; color: #1e3a8a;">
+              {{ rem.montant_valide }} {{ rem.devise or 'USD' }}
+            </span>
+          </td>
+          <td colspan="2">
+            <form method="POST" action="{{ url_for('payer_remuneration', remuneration_id=rem.id) }}" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+              <select name="mode_paiement" required style="padding: 0.4rem; border-radius: 4px; border: 1px solid #cbd5e1;">
+                <option value="especes">Espèces</option>
+                <option value="mobile_money">Mobile Money</option>
+                <option value="banque">Banque</option>
+                <option value="autre">Autre</option>
+              </select>
+              <input
+                type="text"
+                name="reference_paiement"
+                maxlength="100"
+                placeholder="Réf. transaction (optionnel)"
+                style="padding: 0.4rem; border-radius: 4px; border: 1px solid #cbd5e1; width: 180px;"
+              />
+              <button class="btn btn-primary btn-sm" type="submit" onclick="return confirm('Confirmer le décaissement de {{ rem.montant_valide }} {{ rem.devise or '' }} pour {{ rem.enseignant }} ?');">
+                Payer & Émettre reçu
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="empty-state">
+            Aucune rémunération validée n'est en attente de paiement pour le moment.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Section 2 : Mes rémunérations et paiements personnels (puisque le secrétaire est aussi membre du personnel) -->
+<section class="panel">
+  <div class="panel-heading">
+    <h2>2. Ma situation salariale personnelle (En tant que membre du personnel)</h2>
+  </div>
+
+  {% if enseignant_perso %}
+  <div style="margin-bottom: 1rem; padding: 0.8rem 1rem; background: #f8fafc; border-radius: 6px; border-left: 4px solid #3b82f6;">
+    <p style="margin: 0;">
+      Dossier personnel associé : <strong>{{ enseignant_perso.nom }} {{ enseignant_perso.prenom or '' }}</strong>
+      | Matricule : <code>{{ enseignant_perso.matricule }}</code>
+      | Salaire de base : <strong>{{ enseignant_perso.salaire_base or '0.00' }} USD</strong>
+    </p>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Période</th>
+          <th>Présences</th>
+          <th>Montant calculé</th>
+          <th>Montant validé</th>
+          <th>État de ma paie</th>
+          <th>Reçu de paie</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for my_rem in mes_remunerations %}
+        <tr>
+          <td>{{ '%02d'|format(my_rem.mois) }}/{{ my_rem.annee }}</td>
+          <td>{{ my_rem.total_jours_presents or 0 }} / {{ my_rem.total_jours_prevus or 0 }} jrs</td>
+          <td>{{ my_rem.montant_calcule }} USD</td>
+          <td><strong>{{ my_rem.montant_valide }} USD</strong></td>
+          <td>
+            {% if my_rem.statut == 'payee' %}
+              <span class="badge badge-success">✓ Rémunération payée</span>
+            {% elif my_rem.statut == 'validee' %}
+              <span class="badge badge-primary">Validée par l'admin</span>
+            {% elif my_rem.statut == 'a_valider' %}
+              <span class="badge badge-warning">En attente validation admin</span>
+            {% elif my_rem.statut == 'refusee' %}
+              <span class="badge badge-danger">Refusée</span>
+            {% else %}
+              <span class="badge badge-secondary">{{ my_rem.statut }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% set paiement_trouve = namespace(recu=None) %}
+            {% for p in mes_paiements if p.mois == my_rem.mois and p.annee == my_rem.annee %}
+              {% set paiement_trouve.recu = p.numero_recu %}
+            {% endfor %}
+            {% if paiement_trouve.recu %}
+              <a href="{{ url_for('recu_paiement_enseignant', numero_recu=paiement_trouve.recu) }}" class="btn btn-sm btn-secondary" target="_blank">
+                Imprimer mon reçu
+              </a>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">
+            Aucune rémunération préparée pour votre compte à ce jour.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="empty-state">
+    <p>
+      Votre compte utilisateur <strong>{{ current_user.nom_utilisateur }}</strong> n'est pas encore lié à une fiche du personnel enseignant/administratif.
+      L'administrateur peut rattacher votre compte depuis la page <em>Enseignants > Modifier</em> afin que votre salaire et primes apparaissent automatiquement ici.
+    </p>
+  </div>
+  {% endif %}
+</section>
+
+<!-- Section 3 : Mes notifications -->
+<section class="panel">
+  <div class="panel-heading">
+    <h2>3. Mes notifications</h2>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Titre</th>
+          <th>Type</th>
+          <th>Message</th>
+          <th>État</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for notif in notifications %}
+        <tr {% if not notif.lu %}style="background-color: #f0fdf4;"{% endif %}>
+          <td>{{ notif.date_creation }}</td>
+          <td><strong>{{ notif.titre }}</strong></td>
+          <td><span class="badge badge-info">{{ notif.type }}</span></td>
+          <td>{{ notif.message }}</td>
+          <td>
+            {% if notif.lu %}
+              <span class="badge badge-secondary">Lue</span>
+            {% else %}
+              <span class="badge badge-warning">Non lue</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if not notif.lu %}
+            <form method="POST" action="{{ url_for('marquer_notification_lue', notification_id=notif.id) }}">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-sm btn-secondary">Marquer lue</button>
+            </form>
+            {% else %}
+              <span class="muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty-state">Aucune notification reçue.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Section 4 : Derniers encaissements élèves -->
+<section class="panel">
+  <div class="panel-heading">
+    <h2>4. Vos derniers encaissements de frais scolaires</h2>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>N° Reçu</th>
+          <th>Élève</th>
+          <th>Classe</th>
+          <th>Frais</th>
+          <th>Montant</th>
+          <th>Date</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in derniers_paiements %}
+        <tr>
+          <td><code>{{ p.numero_recu }}</code></td>
+          <td>{{ p.eleve }}</td>
+          <td>{{ p.classe }}</td>
+          <td>{{ p.type_frais }}</td>
+          <td><strong>{{ p.montant_paye }} {{ p.devise }}</strong></td>
+          <td>{{ p.date_paiement }}</td>
+          <td>
+            <a href="{{ url_for('recu_paiement', numero_recu=p.numero_recu) }}" class="btn btn-sm btn-secondary" target="_blank">
+              Reçu élève
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="empty-state">Aucun encaissement récent à afficher.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

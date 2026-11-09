@@ -264,15 +264,17 @@ def proteger_requetes():
         return None
 
     if utilisateur.get("role") == "caissier":
-        modules_autorises = {"eleves", "paiements_eleves"}
-        if request.endpoint in {"accueil", "dashboard", "changer_mot_de_passe"}:
+        modules_autorises = {"eleves", "paiements_eleves", "remunerations", "paiements_enseignants"}
+        if request.endpoint in {"accueil", "dashboard", "changer_mot_de_passe", "espace_secretaire"}:
             return None
         view_args = request.view_args or {}
         if request.endpoint == "page_module" and view_args.get("module") in modules_autorises:
             return None
         if request.endpoint in {
             "formulaire_paiement_eleve", "recu_paiement", "detail_eleve",
-            "annuler_paiement_eleve", "eleves_classe", "retirer_eleve_classe"
+            "annuler_paiement_eleve", "eleves_classe", "retirer_eleve_classe",
+            "notifications_enseignant", "marquer_notification_lue",
+            "payer_remuneration", "recu_paiement_enseignant", "espace_enseignant",
         }:
             return None
         abort(403)
@@ -646,10 +648,12 @@ def charger_module(module: str, ecole_id: int | None = None) -> tuple[list[dict[
         ),
         "remunerations": (
             """
-            SELECT r.*, CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS enseignant, ec.devise
+            SELECT r.*, CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS enseignant, ec.devise,
+                   p.numero_recu
             FROM remunerations_enseignants r
             INNER JOIN enseignants e ON e.id = r.enseignant_id
             INNER JOIN ecoles ec ON ec.id = e.ecole_id
+            LEFT JOIN paiements_enseignants p ON p.remuneration_id = r.id AND p.statut = 'valide'
             WHERE e.ecole_id = %s
             ORDER BY r.annee DESC, r.mois DESC, r.id DESC LIMIT 100
             """,
@@ -934,14 +938,14 @@ def enregistrer_donnees_table(nom_table, donnees):
 @app.route("/")
 def accueil():
     if g.current_user.get("role") == "caissier":
-        return redirect(url_for("page_module", module="paiements_eleves"))
+        return redirect(url_for("espace_secretaire"))
     return redirect(url_for("dashboard"))
 
 
 @app.route("/dashboard")
 def dashboard():
     if g.current_user["role"] == "caissier":
-        return redirect(url_for("page_module", module="paiements_eleves"))
+        return redirect(url_for("espace_secretaire"))
     if g.current_user["role"] == "enseignant":
         return redirect(url_for("espace_enseignant"))
 
@@ -2470,6 +2474,118 @@ def espace_enseignant():
     )
 
 
+@app.route("/espace-secretaire")
+def espace_secretaire():
+    if g.current_user["role"] not in {"administrateur", "caissier"}:
+        abort(403)
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+    notifications: list[dict[str, Any]] = []
+    derniers_paiements: list[dict[str, Any]] = []
+    remunerations_validees: list[dict[str, Any]] = []
+    enseignant_perso: dict[str, Any] | None = None
+    mes_remunerations: list[dict[str, Any]] = []
+    mes_paiements: list[dict[str, Any]] = []
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        # Notifications du caissier / secrétaire
+        curseur.execute(
+            """
+            SELECT n.id, n.titre, n.message, n.type, n.date_creation,
+                   d.lu, d.date_lecture, d.date_envoi
+            FROM destinataires_notifications d
+            INNER JOIN notifications n ON n.id = d.notification_id
+            WHERE d.utilisateur_id = %s AND n.ecole_id = %s
+            ORDER BY n.date_creation DESC LIMIT 20
+            """,
+            (g.current_user["id"], g.current_user["ecole_id"]),
+        )
+        notifications = cast(list[dict[str, Any]], curseur.fetchall())
+        # Derniers paiements élèves encaissés par ce caissier
+        curseur.execute(
+            """
+            SELECT p.numero_recu, p.montant_paye, p.date_paiement, p.statut,
+                   CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS eleve,
+                   c.nom AS classe, f.nom AS type_frais, ec.devise
+            FROM paiements_eleves p
+            INNER JOIN inscriptions i ON i.id = p.inscription_id
+            INNER JOIN eleves e ON e.id = i.eleve_id
+            INNER JOIN classes c ON c.id = i.classe_id
+            INNER JOIN types_frais f ON f.id = p.type_frais_id
+            INNER JOIN ecoles ec ON ec.id = e.ecole_id
+            WHERE p.encaisse_par = %s AND e.ecole_id = %s AND p.statut = 'valide'
+            ORDER BY p.date_paiement DESC LIMIT 10
+            """,
+            (g.current_user["id"], g.current_user["ecole_id"]),
+        )
+        derniers_paiements = cast(list[dict[str, Any]], curseur.fetchall())
+        # Rémunérations validées à payer aux enseignants
+        curseur.execute(
+            """
+            SELECT r.id, r.mois, r.annee, r.montant_valide, r.statut,
+                   CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS enseignant,
+                   ec.devise
+            FROM remunerations_enseignants r
+            INNER JOIN enseignants e ON e.id = r.enseignant_id
+            INNER JOIN ecoles ec ON ec.id = e.ecole_id
+            WHERE e.ecole_id = %s AND r.statut = 'validee'
+            ORDER BY r.annee DESC, r.mois DESC LIMIT 50
+            """,
+            (g.current_user["ecole_id"],),
+        )
+        remunerations_validees = cast(list[dict[str, Any]], curseur.fetchall())
+
+        # Rémunérations et paiements personnels si le secrétaire est aussi enseignant/personnel
+        curseur.execute(
+            """
+            SELECT id, matricule, nom, postnom, prenom, specialite, salaire_base, statut
+            FROM enseignants
+            WHERE utilisateur_id = %s AND ecole_id = %s
+            LIMIT 1
+            """,
+            (g.current_user["id"], g.current_user["ecole_id"]),
+        )
+        enseignant_perso = cast(dict[str, Any] | None, curseur.fetchone())
+        if enseignant_perso:
+            curseur.execute(
+                """
+                SELECT id, mois, annee, total_jours_prevus, total_jours_presents,
+                       montant_calcule, montant_valide, statut
+                FROM remunerations_enseignants
+                WHERE enseignant_id = %s
+                ORDER BY annee DESC, mois DESC LIMIT 12
+                """,
+                (enseignant_perso["id"],),
+            )
+            mes_remunerations = cast(list[dict[str, Any]], curseur.fetchall())
+            curseur.execute(
+                """
+                SELECT p.numero_recu, p.montant_paye, p.mode_paiement,
+                       p.reference_paiement, p.date_paiement, p.statut, r.mois, r.annee
+                FROM paiements_enseignants p
+                INNER JOIN remunerations_enseignants r ON r.id = p.remuneration_id
+                WHERE r.enseignant_id = %s AND p.statut = 'valide'
+                ORDER BY p.date_paiement DESC LIMIT 12
+                """,
+                (enseignant_perso["id"],),
+            )
+            mes_paiements = cast(list[dict[str, Any]], curseur.fetchall())
+    except Exception:
+        app.logger.exception("Chargement de l'espace secrétaire impossible.")
+    finally:
+        connexion.close()
+    return render_template(
+        "secretaire/espace.html",
+        notifications=notifications,
+        derniers_paiements=derniers_paiements,
+        remunerations_validees=remunerations_validees,
+        enseignant_perso=enseignant_perso,
+        mes_remunerations=mes_remunerations,
+        mes_paiements=mes_paiements,
+    )
+
+
 @app.route("/espace-enseignant/decision-fin-annee", methods=["POST"])
 def enregistrer_decision_fin_annee():
     if g.current_user["role"] != "enseignant":
@@ -2605,8 +2721,212 @@ def marquer_notification_lue(notification_id):
     return redirect(url_for("notifications_enseignant"))
 
 
+@app.route("/remunerations/preparer", methods=["GET", "POST"])
+def preparer_remuneration():
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+
+    aujourd_hui = date.today()
+    mois_selectionne = request.values.get("mois", default=aujourd_hui.month, type=int)
+    annee_selectionnee = request.values.get("annee", default=aujourd_hui.year, type=int)
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+
+    annee_scolaire_active = None
+    enseignants_calculs = []
+    total_pool = Decimal("0.00")
+    total_jours_presence_tous = 0
+    devise = "USD"
+
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute("SELECT devise FROM ecoles WHERE id = %s LIMIT 1", (g.current_user["ecole_id"],))
+        ecole_data = curseur.fetchone()
+        if ecole_data and ecole_data.get("devise"):
+            devise = ecole_data["devise"]
+
+        curseur.execute(
+            "SELECT id, libelle FROM annees_scolaires WHERE ecole_id = %s AND statut = 'en_cours' ORDER BY date_debut DESC LIMIT 1",
+            (g.current_user["ecole_id"],),
+        )
+        annee_scolaire_active = curseur.fetchone()
+        if not annee_scolaire_active:
+            curseur.execute(
+                "SELECT id, libelle FROM annees_scolaires WHERE ecole_id = %s ORDER BY date_debut DESC LIMIT 1",
+                (g.current_user["ecole_id"],),
+            )
+            annee_scolaire_active = curseur.fetchone()
+
+        curseur.execute(
+            """
+            SELECT COALESCE(SUM(r.montant_prime_enseignants), 0) AS pool_total
+            FROM repartitions_paiements r
+            INNER JOIN paiements_eleves p ON p.id = r.paiement_id
+            INNER JOIN inscriptions i ON i.id = p.inscription_id
+            INNER JOIN eleves e ON e.id = i.eleve_id
+            WHERE e.ecole_id = %s AND p.statut = 'valide'
+              AND MONTH(p.date_paiement) = %s AND YEAR(p.date_paiement) = %s
+            """,
+            (g.current_user["ecole_id"], mois_selectionne, annee_selectionnee),
+        )
+        pool_res = curseur.fetchone()
+        if pool_res:
+            total_pool = Decimal(str(pool_res["pool_total"] or 0)).quantize(Decimal("0.01"))
+
+        curseur.execute(
+            """
+            SELECT id, matricule, CONCAT_WS(' ', nom, postnom, prenom) AS nom_complet,
+                   salaire_base, statut
+            FROM enseignants
+            WHERE ecole_id = %s AND statut = 'actif'
+            ORDER BY nom, prenom
+            """,
+            (g.current_user["ecole_id"],),
+        )
+        enseignants = cast(list[dict[str, Any]], curseur.fetchall())
+
+        for ens in enseignants:
+            curseur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_enregistrements,
+                    SUM(CASE WHEN statut IN ('present', 'retard') THEN 1 ELSE 0 END) AS jours_presents,
+                    SUM(CASE WHEN statut = 'absent' THEN 1 ELSE 0 END) AS jours_absents
+                FROM presences_enseignants
+                WHERE enseignant_id = %s AND MONTH(date_presence) = %s AND YEAR(date_presence) = %s
+                """,
+                (ens["id"], mois_selectionne, annee_selectionnee),
+            )
+            stats_p = curseur.fetchone() or {}
+            j_pres = int(stats_p.get("jours_presents") or 0)
+            j_abs = int(stats_p.get("jours_absents") or 0)
+            total_jours_presence_tous += j_pres
+
+            curseur.execute(
+                """
+                SELECT id, statut, montant_calcule, montant_valide
+                FROM remunerations_enseignants
+                WHERE enseignant_id = %s AND mois = %s AND annee = %s
+                LIMIT 1
+                """,
+                (ens["id"], mois_selectionne, annee_selectionnee),
+            )
+            rem_existante = curseur.fetchone()
+
+            enseignants_calculs.append({
+                "id": ens["id"],
+                "matricule": ens["matricule"],
+                "nom_complet": ens["nom_complet"],
+                "salaire_base": Decimal(str(ens["salaire_base"] or 0)).quantize(Decimal("0.01")),
+                "jours_presents": j_pres,
+                "jours_absents": j_abs,
+                "jours_prevus": max(j_pres + j_abs, 22),
+                "rem_existante": rem_existante,
+            })
+
+        nb_enseignants = len(enseignants_calculs)
+        for item in enseignants_calculs:
+            if total_jours_presence_tous > 0:
+                part_pool = (total_pool * Decimal(item["jours_presents"]) / Decimal(total_jours_presence_tous)).quantize(Decimal("0.01"))
+            elif nb_enseignants > 0:
+                part_pool = (total_pool / Decimal(nb_enseignants)).quantize(Decimal("0.01"))
+            else:
+                part_pool = Decimal("0.00")
+
+            item["part_pool"] = part_pool
+            montant_calcule = (item["salaire_base"] + part_pool).quantize(Decimal("0.01"))
+            item["montant_calcule"] = montant_calcule
+            item["montant_valide"] = montant_calcule
+
+        if request.method == "POST" and request.form.get("action") == "enregistrer":
+            if not annee_scolaire_active:
+                flash("Aucune année scolaire active n'a été trouvée.", "danger")
+                return redirect(url_for("preparer_remuneration", mois=mois_selectionne, annee=annee_selectionnee))
+
+            connexion.start_transaction()
+            nb_enregistres = 0
+            for item in enseignants_calculs:
+                valide_str = request.form.get(f"montant_valide_{item['id']}")
+                try:
+                    montant_valide_saisi = Decimal(valide_str) if valide_str else item["montant_valide"]
+                except (InvalidOperation, TypeError):
+                    montant_valide_saisi = item["montant_valide"]
+
+                rem_ex = item["rem_existante"]
+                if rem_ex and rem_ex["statut"] in {"validee", "payee"}:
+                    continue
+
+                regle_desc = f"Salaire base: {item['salaire_base']} {devise} + Prime ({item['jours_presents']} jrs / {total_jours_presence_tous} total): {item['part_pool']} {devise} (Pool total: {total_pool} {devise})"
+
+                if rem_ex:
+                    curseur.execute(
+                        """
+                        UPDATE remunerations_enseignants
+                        SET total_jours_prevus = %s, total_jours_presents = %s, total_absences = %s,
+                            montant_pool_disponible = %s, montant_calcule = %s, montant_valide = %s,
+                            regle_calcul = %s, statut = 'a_valider'
+                        WHERE id = %s
+                        """,
+                        (item["jours_prevus"], item["jours_presents"], item["jours_absents"],
+                         total_pool, item["montant_calcule"], montant_valide_saisi,
+                         regle_desc, rem_ex["id"]),
+                    )
+                else:
+                    curseur.execute(
+                        """
+                        INSERT INTO remunerations_enseignants
+                            (enseignant_id, annee_scolaire_id, mois, annee,
+                             total_jours_prevus, total_jours_presents, total_absences,
+                             montant_pool_disponible, montant_calcule, montant_valide,
+                             regle_calcul, statut)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'a_valider')
+                        """,
+                        (item["id"], annee_scolaire_active["id"], mois_selectionne, annee_selectionnee,
+                         item["jours_prevus"], item["jours_presents"], item["jours_absents"],
+                         total_pool, item["montant_calcule"], montant_valide_saisi,
+                         regle_desc),
+                    )
+                nb_enregistres += 1
+
+            curseur.execute(
+                """
+                INSERT INTO journal_activites
+                    (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (g.current_user["id"], "preparation_paie", "remunerations_enseignants", None,
+                 f"Préparation des rémunérations pour la période {mois_selectionne:02d}/{annee_selectionnee} ({nb_enregistres} enseignant(s)).",
+                 request.remote_addr),
+            )
+            connexion.commit()
+            flash(f"Les rémunérations pour {mois_selectionne:02d}/{annee_selectionnee} ont été préparées avec succès ({nb_enregistres} dossier(s) en attente de validation).", "success")
+            return redirect(url_for("page_module", module="remunerations"))
+
+    except Exception:
+        connexion.rollback()
+        app.logger.exception("Échec de la préparation des rémunérations.")
+        flash("Une erreur s'est produite lors de la préparation des rémunérations.", "danger")
+    finally:
+        connexion.close()
+
+    return render_template(
+        "finances/preparer_remuneration.html",
+        mois_selectionne=mois_selectionne,
+        annee_selectionnee=annee_selectionnee,
+        annee_scolaire=annee_scolaire_active,
+        total_pool=total_pool,
+        total_jours_presence_tous=total_jours_presence_tous,
+        enseignants_calculs=enseignants_calculs,
+        devise=devise,
+    )
+
+
 @app.route("/remunerations/<int:remuneration_id>/valider", methods=["POST"])
 def valider_remuneration(remuneration_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
     connexion = obtenir_connexion()
     if connexion is None:
         abort(503)
@@ -2663,8 +2983,63 @@ def valider_remuneration(remuneration_id):
     return redirect(url_for("page_module", module="remunerations"))
 
 
+@app.route("/remunerations/<int:remuneration_id>/refuser", methods=["POST"])
+def refuser_remuneration(remuneration_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT r.id, r.statut
+            FROM remunerations_enseignants r
+            INNER JOIN enseignants e ON e.id = r.enseignant_id
+            WHERE r.id = %s AND e.ecole_id = %s
+            LIMIT 1 FOR UPDATE
+            """,
+            (remuneration_id, g.current_user["ecole_id"]),
+        )
+        remuneration = cast(dict[str, Any] | None, curseur.fetchone())
+        if not remuneration:
+            connexion.rollback()
+            abort(404)
+        if remuneration["statut"] not in {"a_valider", "brouillon"}:
+            connexion.rollback()
+            flash("Seule une rémunération en attente ou en brouillon peut être refusée.", "danger")
+            return redirect(url_for("page_module", module="remunerations")), 409
+
+        curseur.execute(
+            "UPDATE remunerations_enseignants SET statut = 'refusee', valide_par = %s, date_validation = NOW() WHERE id = %s",
+            (g.current_user["id"], remuneration_id),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "refus", "remunerations_enseignants", remuneration_id,
+             "Rémunération refusée par l'administrateur.", request.remote_addr),
+        )
+        connexion.commit()
+        flash("La rémunération a été marquée comme refusée.", "warning")
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Refus de la rémunération impossible.")
+        flash("La rémunération n'a pas pu être refusée.", "danger")
+    finally:
+        connexion.close()
+    return redirect(url_for("page_module", module="remunerations"))
+
+
 @app.route("/remunerations/<int:remuneration_id>/payer", methods=["POST"])
 def payer_remuneration(remuneration_id):
+    if g.current_user["role"] not in {"administrateur", "caissier"}:
+        abort(403)
     connexion = obtenir_connexion()
     if connexion is None:
         abort(503)
@@ -2721,6 +3096,10 @@ def payer_remuneration(remuneration_id):
              commentaire, g.current_user["id"]),
         )
         paiement_id = curseur.lastrowid
+        curseur.execute(
+            "UPDATE remunerations_enseignants SET statut = 'payee' WHERE id = %s",
+            (remuneration_id,),
+        )
         curseur.execute(
             """
             INSERT INTO journal_activites
@@ -3248,6 +3627,41 @@ def recu_paiement(numero_recu):
     return render_template("finances/recu.html", paiement=paiement, ecole={"nom": paiement["ecole"]})
 
 
+@app.route("/paiements-enseignants/recu/<numero_recu>")
+def recu_paiement_enseignant(numero_recu):
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            """
+            SELECT p.*, p.montant_paye AS montant,
+                   CONCAT_WS(' ', e.nom, e.postnom, e.prenom) AS enseignant,
+                   e.matricule, r.mois, r.annee,
+                   CONCAT_WS(' ', u.nom, u.postnom, u.prenom) AS caissier,
+                   ec.nom AS ecole, ec.devise
+            FROM paiements_enseignants p
+            INNER JOIN remunerations_enseignants r ON r.id = p.remuneration_id
+            INNER JOIN enseignants e ON e.id = r.enseignant_id
+            INNER JOIN ecoles ec ON ec.id = e.ecole_id
+            LEFT JOIN utilisateurs u ON u.id = p.paye_par
+            WHERE p.numero_recu = %s AND ec.id = %s
+            LIMIT 1
+            """,
+            (numero_recu, g.current_user["ecole_id"]),
+        )
+        paiement = cast(dict[str, Any] | None, curseur.fetchone())
+    except Exception:
+        app.logger.exception("Lecture du reçu enseignant impossible.")
+        abort(500)
+    finally:
+        connexion.close()
+    if paiement is None:
+        abort(404)
+    return render_template("finances/recu_enseignant.html", paiement=paiement, ecole={"nom": paiement["ecole"]})
+
+
 @app.route("/paiements-eleves/<int:paiement_id>/annuler", methods=["POST"])
 def annuler_paiement_eleve(paiement_id):
     if g.current_user["role"] not in {"administrateur", "caissier"}:
@@ -3510,6 +3924,7 @@ def detail_enseignant(enseignant_id):
         )
         enseignant = cast(dict[str, Any] | None, curseur.fetchone())
         affectations: list[dict[str, Any]] = []
+        remunerations: list[dict[str, Any]] = []
         if enseignant is not None:
             curseur.execute(
                 """
@@ -3524,6 +3939,19 @@ def detail_enseignant(enseignant_id):
                 (enseignant_id, g.current_user["ecole_id"]),
             )
             affectations = cast(list[dict[str, Any]], curseur.fetchall())
+
+            curseur.execute(
+                """
+                SELECT r.id, r.mois, r.annee, r.total_jours_presents, r.total_jours_prevus,
+                       r.montant_calcule, r.montant_valide, r.statut, p.numero_recu
+                FROM remunerations_enseignants r
+                LEFT JOIN paiements_enseignants p ON p.remuneration_id = r.id AND p.statut = 'valide'
+                WHERE r.enseignant_id = %s
+                ORDER BY r.annee DESC, r.mois DESC LIMIT 20
+                """,
+                (enseignant_id,),
+            )
+            remunerations = cast(list[dict[str, Any]], curseur.fetchall())
     except Exception:
         app.logger.exception("Lecture du dossier enseignant impossible.")
         return render_template("enseignants/detail.html", enseignant=None, message="Le dossier enseignant n'a pas pu être chargé."), 500
@@ -3533,7 +3961,7 @@ def detail_enseignant(enseignant_id):
     if enseignant is None:
         return render_template("enseignants/detail.html", enseignant=None, message="Aucun dossier ne correspond à cet enseignant."), 404
 
-    return render_template("enseignants/detail.html", enseignant=enseignant, affectations=affectations, message="")
+    return render_template("enseignants/detail.html", enseignant=enseignant, affectations=affectations, remunerations=remunerations, message="")
 
 
 @app.route("/enseignants/affectations/<int:affectation_id>/cloturer", methods=["POST"])
@@ -3643,6 +4071,104 @@ def changer_statut_enseignant(enseignant_id):
         app.logger.exception("Échec du changement de statut enseignant.")
         flash("La mise à jour du statut enseignant a échoué.", "danger")
         return redirect(url_for("detail_enseignant", enseignant_id=enseignant_id)), 500
+    finally:
+        connexion.close()
+
+
+@app.route("/enseignants/<int:enseignant_id>/modifier", methods=["GET", "POST"])
+def modifier_enseignant(enseignant_id):
+    if g.current_user["role"] != "administrateur":
+        abort(403)
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+    try:
+        curseur = connexion.cursor(dictionary=True)
+        curseur.execute(
+            "SELECT * FROM enseignants WHERE id = %s AND ecole_id = %s LIMIT 1",
+            (enseignant_id, g.current_user["ecole_id"]),
+        )
+        enseignant = cast(dict[str, Any] | None, curseur.fetchone())
+        curseur.execute(
+            """
+            SELECT u.id, u.nom_utilisateur, CONCAT_WS(' ', u.nom, u.postnom, u.prenom) AS nom_complet, u.role
+            FROM utilisateurs u
+            WHERE u.ecole_id = %s AND u.statut = 'actif'
+              AND (u.id = %s OR u.id NOT IN (SELECT utilisateur_id FROM enseignants WHERE utilisateur_id IS NOT NULL AND id != %s))
+            ORDER BY u.nom, u.prenom
+            """,
+            (g.current_user["ecole_id"], (enseignant["utilisateur_id"] if enseignant and enseignant.get("utilisateur_id") else 0), enseignant_id),
+        )
+        utilisateurs_disponibles = cast(list[dict[str, Any]], curseur.fetchall())
+    except Exception:
+        app.logger.exception("Chargement du profil enseignant à modifier impossible.")
+        abort(500)
+    finally:
+        connexion.close()
+
+    if not enseignant:
+        abort(404)
+
+    if request.method == "GET":
+        return render_template("enseignants/modifier.html", enseignant=enseignant, utilisateurs=utilisateurs_disponibles)
+
+    nom = (request.form.get("nom") or "").strip()
+    postnom = (request.form.get("postnom") or "").strip() or None
+    prenom = (request.form.get("prenom") or "").strip() or None
+    sexe = (request.form.get("sexe") or "").strip()
+    telephone = (request.form.get("telephone") or "").strip() or None
+    email = (request.form.get("email") or "").strip() or None
+    adresse = (request.form.get("adresse") or "").strip() or None
+    specialite = (request.form.get("specialite") or "").strip() or None
+    utilisateur_id = request.form.get("utilisateur_id", type=int) or None
+    salaire_base_str = (request.form.get("salaire_base") or "0").strip()
+
+    if not nom or sexe not in {"M", "F", "autre"}:
+        flash("Le nom et le sexe sont obligatoires.", "danger")
+        return render_template("enseignants/modifier.html", enseignant=enseignant, utilisateurs=utilisateurs_disponibles), 400
+
+    try:
+        salaire_base = Decimal(salaire_base_str).quantize(Decimal("0.01"))
+        if salaire_base < 0:
+            raise ValueError()
+    except Exception:
+        flash("Le salaire de base doit être un nombre positif valide.", "danger")
+        return render_template("enseignants/modifier.html", enseignant=enseignant, utilisateurs=utilisateurs_disponibles), 400
+
+    connexion = obtenir_connexion()
+    if connexion is None:
+        abort(503)
+    try:
+        connexion.start_transaction()
+        curseur = connexion.cursor()
+        curseur.execute(
+            """
+            UPDATE enseignants
+            SET nom = %s, postnom = %s, prenom = %s, sexe = %s,
+                telephone = %s, email = %s, adresse = %s, specialite = %s,
+                salaire_base = %s, utilisateur_id = %s
+            WHERE id = %s AND ecole_id = %s
+            """,
+            (nom, postnom, prenom, sexe, telephone, email, adresse, specialite,
+             salaire_base, utilisateur_id, enseignant_id, g.current_user["ecole_id"]),
+        )
+        curseur.execute(
+            """
+            INSERT INTO journal_activites
+                (utilisateur_id, action, table_concernee, enregistrement_id, description, adresse_ip)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (g.current_user["id"], "modification_enseignant", "enseignants", enseignant_id,
+             f"Mise à jour des coordonnées et salaire de {nom}.", request.remote_addr),
+        )
+        connexion.commit()
+        flash("Le dossier enseignant a été mis à jour avec succès.", "success")
+        return redirect(url_for("detail_enseignant", enseignant_id=enseignant_id))
+    except Error:
+        connexion.rollback()
+        app.logger.exception("Échec de la modification du dossier enseignant.")
+        flash("La mise à jour de l'enseignant a échoué.", "danger")
+        return render_template("enseignants/modifier.html", enseignant=enseignant, utilisateurs=utilisateurs_disponibles), 400
     finally:
         connexion.close()
 

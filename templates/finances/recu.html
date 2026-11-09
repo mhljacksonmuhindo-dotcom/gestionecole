@@ -16,8 +16,9 @@
         DOCUMENT ANNULÉ
       </div>
       <div class="alert alert-danger" style="margin-bottom: 1rem; text-align: center; border: 2px dashed #b91c1c; font-weight: bold;">
-        ⚠️ CE REÇU A ÉTÉ ANNULÉ LE {{ paiement.date_annulation or '' }}<br>
-        <span style="font-size: 0.9em; font-weight: normal;">Motif : {{ paiement.motif_annulation or 'Annulation administrative' }}</span>
+         CE REÇU A ÉTÉ ANNULÉ LE {{ paiement.date_annulation or '' }}<br>
+        <span style="font-size: 0.9em; font-weight: normal;">Motif : 
+        {{ paiement.motif_annulation or 'Annulation administrative' }}</span>
       </div>
       {% endif %}
 

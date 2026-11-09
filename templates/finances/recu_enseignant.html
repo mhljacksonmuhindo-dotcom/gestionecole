@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reçu de paiement du personnel | {{ ecole.nom if ecole else "Gestion École" }}</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <style>
+      @media print {
+        .no-print {
+          display: none !important;
+        }
+        body {
+          background: #fff;
+          padding: 0;
+        }
+        .receipt {
+          box-shadow: none;
+          border: 1px solid #ccc;
+          margin: 0 auto;
+        }
+      }
+      .receipt-actions {
+        max-width: 650px;
+        margin: 1.5rem auto 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .signatures-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px dashed #cbd5e1;
+      }
+      .signature-box {
+        text-align: center;
+      }
+      .signature-line {
+        height: 60px;
+        border-bottom: 1px solid #94a3b8;
+        margin-bottom: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="receipt-actions no-print">
+      <a href="{{ url_for('page_module', module='paiements_enseignants') }}" class="btn btn-secondary">
+        ← Retour aux paiements
+      </a>
+      <button onclick="window.print()" class="btn btn-primary">
+        🖨️ Imprimer le reçu / Bulletin
+      </button>
+    </div>
+
+    <main class="receipt" style="margin-top: 1rem;">
+      <header class="receipt-header">
+        <h1>{{ ecole.nom if ecole else "Établissement Scolaire" }}</h1>
+        <p>BULLETIN DE PAIE ET DÉCAISSEMENT DU PERSONNEL</p>
+        <strong>N° {{ paiement.numero_recu or 'À attribuer' }}</strong>
+      </header>
+
+      <div class="receipt-details">
+        <p><strong>Bénéficiaire :</strong> {{ paiement.enseignant or '—' }}</p>
+        <p><strong>Matricule :</strong> <code>{{ paiement.matricule or '—' }}</code></p>
+        <p><strong>Période concernée :</strong> Mois {{ '%02d'|format(paiement.mois) }}/{{ paiement.annee }}</p>
+        <p>
+          <strong>Montant net perçu :</strong>
+          <span style="font-size: 1.2em; font-weight: bold; color: #15803d;">
+            {{ paiement.montant }} {{ paiement.devise or 'USD' }}
+          </span>
+        </p>
+        <p><strong>Mode de paiement :</strong> {{ paiement.mode_paiement | capitalize if paiement.mode_paiement else 'Espèces' }}</p>
+        {% if paiement.reference_paiement %}
+        <p><strong>Référence transaction :</strong> {{ paiement.reference_paiement }}</p>
+        {% endif %}
+        <p><strong>Date de paiement :</strong> {{ paiement.date_paiement or '—' }}</p>
+        <p><strong>Payé par (Caisse / Secrétariat) :</strong> {{ paiement.caissier or 'Direction' }}</p>
+        <p><strong>Statut :</strong> 
+          {% if paiement.statut == 'valide' %}
+            <span style="color: #15803d; font-weight: bold;">RÉGLÉ / VALIDE</span>
+          {% else %}
+            <span style="color: #b91c1c; font-weight: bold;">ANNULÉ</span>
+          {% endif %}
+        </p>
+        {% if paiement.commentaire %}
+        <p><strong>Observations :</strong> {{ paiement.commentaire }}</p>
+        {% endif %}
+      </div>
+
+      <div class="signatures-grid">
+        <div class="signature-box">
+          <div class="signature-line"></div>
+          <small>Signature & Cachet Caisse / Secrétariat</small>
+        </div>
+        <div class="signature-box">
+          <div class="signature-line"></div>
+          <small>Signature du Bénéficiaire (Pour décharge)</small>
+        </div>
+      </div>
+
+      <p class="receipt-thanks" style="margin-top: 1.5rem;">
+        Document officiel généré par le système de gestion scolaire.
+      </p>
+    </main>
+  </body>
+</html>

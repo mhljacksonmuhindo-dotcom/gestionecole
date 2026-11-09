@@ -27,6 +27,39 @@
         <div class="sidebar-label">MENU PRINCIPAL</div>
 
         <nav class="navigation">
+          {% if current_user.role == 'caissier' %}
+          <a href="{{ url_for('espace_secretaire') }}" class="nav-link">
+            <span>▦ &nbsp;</span> Espace Caisse / Secrétariat
+          </a>
+          <a href="{{ url_for('page_module', module='eleves') }}" class="nav-link">
+            <span>♙ &nbsp; </span> Dossiers Élèves
+          </a>
+
+          <div class="sidebar-label">FINANCES & CAISSE</div>
+          <a href="{{ url_for('page_module', module='paiements_eleves') }}" class="nav-link">
+            <span>⇄ &nbsp; </span> Paiements des élèves
+          </a>
+          <a href="{{ url_for('page_module', module='remunerations') }}" class="nav-link">
+            <span>₣ &nbsp; </span> Rémunérations à payer
+          </a>
+          <a href="{{ url_for('page_module', module='paiements_enseignants') }}" class="nav-link">
+            <span>₣ &nbsp; </span> Historique décaissements
+          </a>
+
+          <div class="sidebar-label">COMMUNICATION</div>
+          <a href="{{ url_for('notifications_enseignant') }}" class="nav-link">
+            <span>▧ &nbsp;</span> Mes notifications
+          </a>
+
+          {% elif current_user.role == 'enseignant' %}
+          <a href="{{ url_for('espace_enseignant') }}" class="nav-link">
+            <span>▦ &nbsp;</span> Mon Espace Enseignant
+          </a>
+          <a href="{{ url_for('notifications_enseignant') }}" class="nav-link">
+            <span>▧ &nbsp;</span> Mes notifications
+          </a>
+
+          {% else %}
           <a href="{{ url_for('dashboard') }}" class="nav-link">
             <span>▦ &nbsp;</span> Tableau de bord
           </a>
@@ -126,6 +159,7 @@
           >
             <span>◴ &nbsp; </span> Journal d'activités
           </a>
+          {% endif %}
         </nav>
 
         <div class="sidebar-footer">
@@ -153,14 +187,16 @@
           </div>
 
           <div class="topbar-user">
-            <div class="user-avatar">AD</div>
+            <div class="user-avatar">
+              {{ current_user.nom[:2] if current_user.nom else 'AD' }}
+            </div>
             <div class="user-info">
               <strong
                 >{{ current_user.nom }} {{ current_user.prenom or '' }}</strong
               >
               <small>{{ current_user.role }}</small>
             </div>
-            {% if current_user.role == 'enseignant' %}
+            {% if current_user.role in ['enseignant', 'caissier'] %}
             <a
               class="btn btn-secondary"
               href="{{ url_for('notifications_enseignant') }}"

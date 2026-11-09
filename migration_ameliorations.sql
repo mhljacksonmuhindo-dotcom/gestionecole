@@ -29,3 +29,6 @@ ALTER TABLE `paiements_eleves`
 -- 3. Table utilisateurs 
 ALTER TABLE `utilisateurs`
   ADD COLUMN `doit_changer_mdp` TINYINT(1) DEFAULT 0 AFTER `derniere_connexion`;
+
+-- 4. Statut 'payee' dans remunerations_enseignants
+ALTER TABLE `remunerations_enseignants` MODIFY `statut` ENUM('brouillon','a_valider','validee','payee','refusee') DEFAULT 'brouillon';
