@@ -15,6 +15,34 @@ endblock %} {% block content %}
 </section>
 
 <section class="panel">
+<!-- Bloc visible des soldes cumulés des comptes financiers -->
+<div class="row mb-4" style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem;">
+  
+  <!-- Compte Hiérarchie -->
+  <div class="card" style="flex: 1; min-width: 200px; padding: 1.5rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h6 style="color: #6c757d; margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Hiérarchie</h6>
+    <h3 style="color: #2c3e50; font-weight: bold; margin: 0;">{{ "%.2f"|format(totaux_comptes.hierarchie) }} USD</h3>
+  </div>
+
+  <!-- Pool Primes Enseignants -->
+  <div class="card" style="flex: 1; min-width: 200px; padding: 1.5rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h6 style="color: #6c757d; margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Primes Enseignants</h6>
+    <h3 style="color: #2c3e50; font-weight: bold; margin: 0;">{{ "%.2f"|format(totaux_comptes.primes) }} USD</h3>
+  </div>
+
+  <!-- Compte Promoteur -->
+  <div class="card" style="flex: 1; min-width: 200px; padding: 1.5rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h6 style="color: #6c757d; margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Promoteur</h6>
+    <h3 style="color: #2c3e50; font-weight: bold; margin: 0;">{{ "%.2f"|format(totaux_comptes.promoteur) }} USD</h3>
+  </div>
+
+  <!-- Compte Fonctionnement -->
+  <div class="card" style="flex: 1; min-width: 200px; padding: 1.5rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <h6 style="color: #6c757d; margin-bottom: 0.5rem; text-transform: uppercase; font-size: 0.85rem;">Fonctionnement</h6>
+    <h3 style="color: #2c3e50; font-weight: bold; margin: 0;">{{ "%.2f"|format(totaux_comptes.fonctionnement) }} USD</h3>
+  </div>
+
+</div>
   <div class="panel-heading">
     <h2>Règles financières configurées</h2>
   </div>
@@ -93,7 +121,7 @@ endblock %} {% block content %}
   </div>
   <p class="notice">
     Chaque montant ci-dessus provient du snapshot du paiement correspondant.
-    Modifier une règle ne recalcule pas les opérations passées.
+    
   </p>
 </section>
 {% endblock %}

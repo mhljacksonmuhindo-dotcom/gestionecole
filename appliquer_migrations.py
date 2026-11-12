@@ -14,7 +14,7 @@ def appliquer_migrations():
     curseur = connexion.cursor()
 
     modifications = [
-        # Table inscriptions
+       
         (
             "inscriptions",
             "decision_fin_annee",
@@ -156,15 +156,6 @@ def appliquer_migrations():
                 print(f"Erreur lors de l'ajout de {nom_fk}: {e}")
         else:
             print(f"La contrainte {nom_fk} existe déjà.")
-
-    # 4. Statut 'payee' dans remunerations_enseignants (MODIFY ENUM, pas ADD COLUMN)
-    try:
-        curseur.execute(
-            "ALTER TABLE `remunerations_enseignants` MODIFY `statut` ENUM('brouillon','a_valider','validee','payee','refusee') DEFAULT 'brouillon'"
-        )
-        print("ENUM statut de remunerations_enseignants mis à jour avec 'payee'.")
-    except Exception as e:
-        print(f"Mise à jour ENUM remunerations_enseignants (peut déjà exister): {e}")
 
     connexion.commit()
     connexion.close()
